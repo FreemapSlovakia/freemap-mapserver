@@ -1,8 +1,8 @@
 {
   "name": "freemap-mapserver",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "",
-  "main": "app/index.js",
+  "main": "lib/index.js",
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -17,7 +17,6 @@
     "xmlbuilder": "10.1.1"
   },
   "devDependencies": {
-    "eslint": "5.11.1",
-    "nodemon": "1.18.9"
+    "eslint": "5.11.1"
   }
 }
