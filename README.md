@@ -1,4 +1,4 @@
-# Mapnik based Freemap Outdoor Map
+# Freemap Mapserver
 
 ## Features
 
@@ -10,19 +10,3 @@
 * Detection of dirty tiles (based on changes reported by imposm3) and rendering scheduling
 * Easy style development and debugging (save and reload)
 * Many features are configurable
-
-## Demo
-
-https://www.freemap.sk/?layers=X
-
-## Installation
-
-### Using Docker
-
-Use this method for easier installation for development purposes.
-
-Please see [doc/DOCKER.md](./doc/DOCKER.md).
-
-### Regular
-
-Please see [doc/INSTALL.md](./doc/DOCKER.md).
