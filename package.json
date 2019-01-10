@@ -1,12 +1,8 @@
 {
-  "name": "freemap-mapnik",
+  "name": "freemap-mapserver",
   "version": "1.0.0",
   "description": "",
   "main": "app/index.js",
-  "scripts": {
-    "start": "node --max-old-space-size=4096 --experimental-worker app",
-    "watch": "nodemon --ext js,xml,svg --watch app --watch images --exec npm run start"
-  },
   "author": "",
   "license": "ISC",
   "dependencies": {
