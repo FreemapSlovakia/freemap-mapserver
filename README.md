@@ -10,3 +10,105 @@
 * Detection of dirty tiles (based on changes reported by imposm3) and rendering scheduling
 * Easy style development and debugging (save and reload)
 * Many features are configurable
+
+## Usage
+
+```js
+const { startMapserver } = require('freemap-mapserver');
+const { mapnikConfig, generateFreemapStyle } = require('./style');
+
+startMapserver(mapnikConfig, generateFreemapStyle);
+```
+
+* `mapnikConfig` - stringified Mapnik XML
+* `generateFreemapStyle` - function returning stringified Mapnik XML; used for PDF export. Parameters:
+  * shading (bool)
+  * contours (bool)
+  * hikingTrails (bool)
+  * bicycleTrails (bool)
+  * skiTrails (bool)
+
+## Config
+You app must use `node-config` library with configuration of the following structure:
+
+```json5
+{
+  db: {
+    type: 'postgis',
+    host: 'localhost',
+    port: 5432,
+    user: 'gis',
+    dbname: 'gis',
+    password: 'secret',
+  },
+  dirs: {
+    tiles: 'tiles',
+    expires: 'expires',
+    fonts: 'fonts',
+  },
+  server: {
+    port: 4000,
+  },
+  workers: {
+    // min: 8, commented out = use num of cpus
+    // max: 8, commented out = use num of cpus
+  },
+  forceTileRendering: false, // useful for style development
+  dumpXml: false,
+  mapFeatures: {
+    contours: true,
+    shading: true,
+    hikingTrails: true,
+    bicycleTrails: true,
+    skiTrails: true,
+  },
+  limits: {
+    minZoom: 0,
+    maxZoom: 19,
+    minLon: 16.63330078125,
+    maxLon: 22.785644531249996,
+    minLat: 47.517200697839414,
+    maxLat: 49.82380908513249,
+    scales: [1, 1.5, 2, 3],
+  },
+  prerender: { // set to null to disable pre-rendering
+    // workers: 8, commented out = use num of cpus
+    minLon: 16.63330078125,
+    maxLon: 22.785644531249996,
+    minLat: 47.517200697839414,
+    maxLat: 49.82380908513249,
+    minZoom: 8,
+    maxZoom: 16,
+    zoomPrio: [12, 13, 14, 15, 11, 16, 10, 9, 8],
+  },
+  rerenderOlderThanMs: 0, // use 0 to disable
+  renderToPdfConcurrency: 1,
+}
+```
+
+## Rendering
+
+### If `prerender` is `null`:
+* On request
+  * renders IF tile is missing OR tile is older than `rerenderOlderThanMs` OR `forceTileRendering`
+  * caches result to `tiles` dir
+
+### If `prerender` is NOT `null`:
+
+* On startup scans all scale-1 tiles within `prerender` limits and adds tile to _Dirty Tiles Register_ if:
+  * scale-1 tile is missing
+  * scale-1 tile is older than `rerenderOlderThanMs`
+  * for tile exists a _dirty-file_
+
+* On request render tile IF tile is missing OR (is older than `rerenderOlderThanMs` AND is out of `prerender` limits)
+
+Dirty tiles marker:
+* reads from `expires` dir and computes tiles of all zooms from `limits`
+* every such tile out of `prerender` limits is deleted
+* if tile exists then it creates its _dirty-file_ and stores it to _Dirty Tiles Register_
+
+Prerenderer:
+* loops over _Dirty Tiles Register_
+* for every dirty tile pre-render it
+  * TODO if _dirty-file_ render all scales else only missing scales
+  * TODO
