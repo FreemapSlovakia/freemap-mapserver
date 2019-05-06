@@ -12,7 +12,8 @@
     "koa": "2.7.0",
     "koa-router": "7.4.0",
     "koa-send": "5.0.0",
-    "mapnik": "4.2.1"
+    "mapnik": "4.2.1",
+    "pngquant-bin": "5.0.2"
   },
   "devDependencies": {
     "eslint": "5.16.0"
