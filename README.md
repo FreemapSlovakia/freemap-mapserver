@@ -83,6 +83,7 @@ You app must use `node-config` library with configuration of the following struc
   },
   rerenderOlderThanMs: 0, // use 0 to disable
   renderToPdfConcurrency: 1,
+  pngquantOptions: [], // set to null to skip pngquant
 }
 ```
 
