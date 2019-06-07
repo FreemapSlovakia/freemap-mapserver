@@ -65,20 +65,14 @@ You app must use `node-config` library with configuration of the following struc
   limits: {
     minZoom: 0,
     maxZoom: 19,
-    minLon: 16.63330078125,
-    maxLon: 22.785644531249996,
-    minLat: 47.517200697839414,
-    maxLat: 49.82380908513249,
+    polygon: 'limits.geojson',
     scales: [1, 1.5, 2, 3],
   },
   prerender: { // set to null to disable pre-rendering
     // workers: 8, commented out = use num of cpus
-    minLon: 16.63330078125,
-    maxLon: 22.785644531249996,
-    minLat: 47.517200697839414,
-    maxLat: 49.82380908513249,
     minZoom: 8,
     maxZoom: 16,
+    polygon: 'limits.geojson',
     zoomPrio: [12, 13, 14, 15, 11, 16, 10, 9, 8],
   },
   rerenderOlderThanMs: 0, // use 0 to disable
