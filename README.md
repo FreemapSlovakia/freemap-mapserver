@@ -67,6 +67,7 @@ You app must use `node-config` library with configuration of the following struc
     maxZoom: 19,
     polygon: 'limits.geojson',
     scales: [1, 1.5, 2, 3],
+    cleanup: true, // to delete cached tiles out of limits on startup
   },
   prerender: { // set to null to disable pre-rendering
     // workers: 8, commented out = use num of cpus
