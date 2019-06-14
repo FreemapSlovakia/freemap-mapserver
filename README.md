@@ -81,6 +81,11 @@ You app must use `node-config` library with configuration of the following struc
   pngquantOptions: [], // set to null to skip pngquant
   notFoundAsTransparent: true,
   maxMapUseCount: 10, // set to falsy to disable
+  format: {
+    extension: 'png',
+    mimeType: 'image/png',
+    codec: 'png',
+  }
 }
 ```
 
