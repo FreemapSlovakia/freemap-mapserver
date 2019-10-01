@@ -2,14 +2,14 @@
 
 ## Features
 
-* Mapnik configuration in Javascript adding all benefits of scripting (preventing repetition, programatic style generation, …)
-* Map tile serving (TMS)
-* PDF output
-* Configurable map pre-rendering
-* On-demand tile rendering (if tile is not rendered yet)
-* Detection of dirty tiles (based on changes reported by imposm3) and rendering scheduling
-* Easy style development and debugging (save and reload)
-* Many features are configurable
+- Mapnik configuration in Javascript adding all benefits of scripting (preventing repetition, programatic style generation, …)
+- Map tile serving (TMS)
+- PDF output
+- Configurable map pre-rendering
+- On-demand tile rendering (if tile is not rendered yet)
+- Detection of dirty tiles (based on changes reported by imposm3) and rendering scheduling
+- Easy style development and debugging (save and reload)
+- Many features are configurable
 
 ## Usage
 
@@ -20,15 +20,16 @@ const { mapnikConfig, generateFreemapStyle } = require('./style');
 startMapserver(mapnikConfig, generateFreemapStyle);
 ```
 
-* `mapnikConfig` - stringified Mapnik XML
-* `generateFreemapStyle` - function returning stringified Mapnik XML; used for PDF export. Parameters:
-  * shading (bool)
-  * contours (bool)
-  * hikingTrails (bool)
-  * bicycleTrails (bool)
-  * skiTrails (bool)
+- `mapnikConfig` - stringified Mapnik XML
+- `generateFreemapStyle` - function returning stringified Mapnik XML; used for PDF export. Parameters:
+  - shading (bool)
+  - contours (bool)
+  - hikingTrails (bool)
+  - bicycleTrails (bool)
+  - skiTrails (bool)
 
 ## Config
+
 You app must use `node-config` library with configuration of the following structure:
 
 ```json5
@@ -69,7 +70,8 @@ You app must use `node-config` library with configuration of the following struc
     scales: [1, 1.5, 2, 3],
     cleanup: true, // to delete cached tiles out of limits on startup
   },
-  prerender: { // set to null to disable pre-rendering
+  prerender: {
+    // set to null to disable pre-rendering
     // workers: 8, commented out = use num of cpus
     minZoom: 8,
     maxZoom: 16,
@@ -85,33 +87,37 @@ You app must use `node-config` library with configuration of the following struc
     extension: 'png',
     mimeType: 'image/png',
     codec: 'png',
-  }
+  },
 }
 ```
 
 ## Rendering
 
 ### If `prerender` is `null`:
-* On request
-  * renders IF tile is missing OR tile is older than `rerenderOlderThanMs` OR `forceTileRendering`
-  * caches result to `tiles` dir
+
+- On request
+  - renders IF tile is missing OR tile is older than `rerenderOlderThanMs` OR `forceTileRendering`
+  - caches result to `tiles` dir
 
 ### If `prerender` is NOT `null`:
 
-* On startup scans all scale-1 tiles within `prerender` limits and adds tile to _Dirty Tiles Register_ if:
-  * scale-1 tile is missing
-  * scale-1 tile is older than `rerenderOlderThanMs`
-  * for tile exists a _dirty-file_
+- On startup scans all scale-1 tiles within `prerender` limits and adds tile to _Dirty Tiles Register_ if:
 
-* On request render tile IF tile is missing OR (is older than `rerenderOlderThanMs` AND is out of `prerender` limits)
+  - scale-1 tile is missing
+  - scale-1 tile is older than `rerenderOlderThanMs`
+  - for tile exists a _dirty-file_
+
+- On request render tile IF tile is missing OR (is older than `rerenderOlderThanMs` AND is out of `prerender` limits)
 
 Dirty tiles marker:
-* reads from `expires` dir and computes tiles of all zooms from `limits`
-* every such tile out of `prerender` limits is deleted
-* if tile exists then it creates its _dirty-file_ and stores it to _Dirty Tiles Register_
+
+- reads from `expires` dir and computes tiles of all zooms from `limits`
+- every such tile out of `prerender` limits is deleted
+- if tile exists then it creates its _dirty-file_ and stores it to _Dirty Tiles Register_
 
 Prerenderer:
-* loops over _Dirty Tiles Register_
-* for every dirty tile pre-render it
-  * TODO if _dirty-file_ render all scales else only missing scales
-  * TODO
+
+- loops over _Dirty Tiles Register_
+- for every dirty tile pre-render it
+  - TODO if _dirty-file_ render all scales else only missing scales
+  - TODO
