@@ -101,6 +101,8 @@ You app must use `node-config` library with configuration of the following struc
 
 ### If `prerender` is NOT `null`:
 
+- On startup all tiles out of `limits` are deleted
+
 - On startup scans all scale-1 tiles within `prerender` limits and adds tile to _Dirty Tiles Register_ if:
 
   - scale-1 tile is missing
