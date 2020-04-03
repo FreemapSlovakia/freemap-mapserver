@@ -28,9 +28,9 @@ startMapserver(mapnikConfig, generateFreemapStyle);
   - bicycleTrails (bool)
   - skiTrails (bool)
 
-## Config
+## Configuration
 
-You app must use `node-config` library with configuration of the following structure:
+Your app must use `node-config` library with configuration of the following structure:
 
 ```json5
 {
@@ -56,13 +56,6 @@ You app must use `node-config` library with configuration of the following struc
   },
   forceTileRendering: false, // useful for style development
   dumpXml: false,
-  mapFeatures: {
-    contours: true,
-    shading: true,
-    hikingTrails: true,
-    bicycleTrails: true,
-    skiTrails: true,
-  },
   limits: {
     minZoom: 0,
     maxZoom: 19,
