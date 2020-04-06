@@ -6,23 +6,29 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@koa/cors": "3.0.0",
     "@turf/turf": "5.1.6",
+    "ajv": "6.12.0",
     "chokidar": "3.3.1",
-    "config": "3.2.5",
+    "config": "3.3.1",
     "generic-pool": "3.7.1",
     "koa": "2.11.0",
-    "koa-router": "8.0.6",
+    "koa-body": "4.1.1",
+    "koa-router": "8.0.8",
     "koa-send": "5.0.0",
-    "mapnik": "4.3.1",
+    "mapnik": "4.4.0",
     "pngquant-bin": "5.0.2",
-    "promisify-child-process": "3.1.3"
+    "promisify-child-process": "3.1.4",
+    "shp-write": "git://github.com/hwbllmnn/shp-write.git#fix-point-export"
   },
   "devDependencies": {
+    "@types/geojson": "7946.0.7",
+    "@types/json-schema": "7.0.4",
     "@types/mapnik": "3.0.1",
-    "@types/node": "13.5.0",
+    "@types/node": "13.11.0",
     "eslint": "6.8.0",
-    "eslint-config-prettier": "6.9.0",
+    "eslint-config-prettier": "6.10.1",
     "eslint-plugin-prettier": "3.1.2",
-    "prettier": "1.19.1"
+    "prettier": "2.0.4"
   }
 }
