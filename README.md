@@ -16,8 +16,9 @@
 ```js
 const { startMapserver } = require('freemap-mapserver');
 const { mapnikConfig, generateFreemapStyle } = require('./style');
+const { legend } = require('./legend');
 
-startMapserver(mapnikConfig, generateFreemapStyle);
+startMapserver(mapnikConfig, generateFreemapStyle, legend);
 ```
 
 - `mapnikConfig` - stringified Mapnik XML
