@@ -76,7 +76,6 @@ Your app must use `node-config` library with configuration of the following stru
   renderToPdfConcurrency: 1,
   pngquantOptions: [], // set to null to skip pngquant
   notFoundAsTransparent: true,
-  maxMapUseCount: 10, // set to falsy to disable
   format: {
     extension: 'png',
     mimeType: 'image/png',
