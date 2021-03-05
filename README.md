@@ -81,6 +81,9 @@ Your app must use `node-config` library with configuration of the following stru
     mimeType: 'image/png',
     codec: 'png',
   },
+  minExpiredBatchSize: 500, // batch size when deleting expired files; set to null to delete without batching,
+  expiresZoom: 14, // on which zoom does imposm3 marks tiles as expired,
+  prerenderMaxZoom: 14, // we need to know it even in on-demand only instance for creating index files
 }
 ```
 
