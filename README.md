@@ -84,6 +84,10 @@ Your app must use `node-config` library with configuration of the following stru
   minExpiredBatchSize: 500, // batch size when deleting expired files; set to null to delete without batching,
   expiresZoom: 14, // on which zoom does imposm3 marks tiles as expired,
   prerenderMaxZoom: 14, // we need to know it even in on-demand only instance for creating index files
+  // how long to delay rendering a tile when expiring tiles
+  // this is to prevent drastical fi i/o slowdown when prerendering eats 100% cpu
+  // set to zero to prevent this feature
+  prerenderDelayWhenExpiring: 50,
 }
 ```
 
