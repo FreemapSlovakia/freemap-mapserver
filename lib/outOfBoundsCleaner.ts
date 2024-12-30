@@ -1,24 +1,16 @@
-// @ts-check
+import config from 'config';
+import { readdir, unlink } from 'fs/promises';
+import path from 'path';
+import { tileOverlapsLimits } from './tileCalc.js';
+import { limitPolygon } from './config.js';
 
-const config = require('config');
+const tilesDir: string = config.get('dirs.tiles');
 
-const { readdir, unlink } = require('fs').promises;
+const minZoom: number = config.get('limits.minZoom');
 
-const path = require('path');
+const maxZoom: number = config.get('limits.maxZoom');
 
-const { tileOverlapsLimits } = require('./tileCalc');
-
-const tilesDir = config.get('dirs.tiles');
-
-const { limitPolygon } = require('./config');
-
-/** @type number */
-const minZoom = config.get('limits.minZoom');
-
-/** @type number */
-const maxZoom = config.get('limits.maxZoom');
-
-async function cleanupOutOfBoundTiles() {
+export async function cleanupOutOfBoundTiles() {
   for (const zoomStr of await readdir(tilesDir)) {
     const zoom = parseInt(zoomStr, 10);
 
@@ -38,9 +30,10 @@ async function cleanupOutOfBoundTiles() {
       }
 
       for (const file of await readdir(path.resolve(tilesDir, zoomStr, xStr))) {
-        const m = /^(\d+)(?:@\d+(?:\.\d+)?x)?\.(?:webp|jpg|jpeg|png|dirty|index)$/.exec(
-          file,
-        ); // TODO use format.extension
+        const m =
+          /^(\d+)(?:@\d+(?:\.\d+)?x)?\.(?:webp|jpg|jpeg|png|dirty|index)$/.exec(
+            file,
+          ); // TODO use format.extension
 
         if (!m) {
           console.warn('Unexpected file:', zoom, xStr, file);
@@ -65,7 +58,3 @@ async function cleanupOutOfBoundTiles() {
     }
   }
 }
-
-module.exports = {
-  cleanupOutOfBoundTiles,
-};

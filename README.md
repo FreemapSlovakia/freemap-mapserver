@@ -14,9 +14,9 @@
 ## Usage
 
 ```js
-const { startMapserver } = require('freemap-mapserver');
-const { mapnikConfig, generateFreemapStyle } = require('./style');
-const { legend } = require('./legend');
+import { startMapserver } from 'freemap-mapserver';
+import { mapnikConfig, generateFreemapStyle } from './style.js';
+import { legend } from './legend.js';
 
 startMapserver(mapnikConfig, generateFreemapStyle, legend);
 ```

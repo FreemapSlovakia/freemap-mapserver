@@ -1,47 +1,53 @@
-const path = require('path');
-const config = require('config');
-const mapnik = require('mapnik');
-const { rename, mkdir, unlink, stat, writeFile, open } = require('fs').promises;
-const { flock } = require('fs-ext');
-const { promisify } = require('util');
-const { mercSrs } = require('./projections');
-const { tile2key, tileOverlapsLimits } = require('./tileCalc');
-const { dirtyTiles } = require('./dirtyTilesRegister');
-const { getPool, getImagePool } = require('./mapnikPool');
-const { spawn } = require('promisify-child-process');
-const pngquant = require('pngquant-bin');
-const { prerenderPolygon } = require('./config');
+import path from 'path';
+import config from 'config';
+import mapnik from 'mapnik';
+import { rename, mkdir, unlink, stat, writeFile, open } from 'fs/promises';
+import { flock } from 'fs-ext';
+import { promisify } from 'util';
+import { mercSrs } from './projections.js';
+import { tile2key, tileOverlapsLimits } from './tileCalc.js';
+import { dirtyTiles } from './dirtyTilesRegister.js';
+import { getPool, getImagePool } from './mapnikPool.js';
+import { spawn } from 'promisify-child-process';
+import pngquant from 'pngquant-bin';
+import { prerenderPolygon } from './config.js';
+import { Tile } from './types.js';
 
-const flockAsync = promisify(flock);
+const flockAsync = promisify(
+  flock as (
+    fd: number,
+    flags: 'sh' | 'ex' | 'shnb' | 'exnb' | 'un',
+    callback: (err: NodeJS.ErrnoException | null) => void,
+  ) => void,
+);
 
 const forceTileRendering = config.get('forceTileRendering');
 
-const rerenderOlderThanMs = config.get('rerenderOlderThanMs');
+const rerenderOlderThanMs: number | undefined = config.get(
+  'rerenderOlderThanMs',
+);
 
-const renderToPdfConcurrency = config.get('renderToPdfConcurrency');
+const renderToPdfConcurrency: number = config.get('renderToPdfConcurrency');
 
-/** @type number[] */
-const limitScales = config.get('limits.scales');
+const limitScales: number[] = config.get('limits.scales');
 
-const pngquantOptions = config.get('pngquantOptions');
+const pngquantOptions: string[] | undefined = config.get('pngquantOptions');
 
-let tilesDir = config.get('dirs.tiles');
+let tilesDir: string = config.get('dirs.tiles');
 
-/** @type string */
-const extension = config.get('format.extension');
+const extension: string = config.get('format.extension');
 
-/** @type string */
-const codec = config.get('format.codec');
+const codec: string = config.get('format.codec');
 
 const expiresZoom = config.get('expiresZoom');
 
-const prerenderMaxZoom = config.get('prerenderMaxZoom');
+const prerenderMaxZoom: number = config.get('prerenderMaxZoom');
 
-const prerenderDelayWhenExpiring = config.get('prerenderDelayWhenExpiring');
+const prerenderDelayWhenExpiring: number | undefined = config.get(
+  'prerenderDelayWhenExpiring',
+);
 
 const merc = new mapnik.Projection(mercSrs);
-
-module.exports = { renderTile, exportMap };
 
 mapnik.registerFonts(config.get('dirs.fonts'), { recurse: true });
 
@@ -50,19 +56,17 @@ const white = new mapnik.Color('white');
 let cnt = 0;
 
 // TODO if out of prerender area and reqScale is provided then render only that scale
-/**
- * @param {number} zoom
- * @param {number} x
- * @param {number} y
- * @param {number} [reqScale]
- * @returns {Promise<string | undefined>}
- */
-async function renderTile(zoom, x, y, reqScale) {
+export async function renderTile(
+  zoom: number,
+  x: number,
+  y: number,
+  reqScale?: number,
+): Promise<string | undefined> {
   const frags = [tilesDir, zoom.toString(10), x.toString(10)];
 
   const p = path.join(...frags, y.toString(10));
 
-  const reasons = [];
+  const reasons: string[] = [];
 
   if (forceTileRendering) {
     reasons.push('forced');
@@ -83,7 +87,7 @@ async function renderTile(zoom, x, y, reqScale) {
 
     if (!reqScale) {
       try {
-        await unlink(`${p}.dirty`);
+        await unlink(p + '.dirty');
       } catch (_) {
         // ignore
       }
@@ -97,19 +101,17 @@ async function renderTile(zoom, x, y, reqScale) {
     : undefined;
 }
 
-let coolDownPromise;
+let coolDownPromise: Promise<void> | null;
 
-/**
- *
- * @param {string} p
- * @param {number} zoom
- * @param {number} x
- * @param {number} y
- * @param {number} scale
- * @param {boolean} prerender
- * @param {steing[]} reasons
- */
-async function renderSingleScale(p, zoom, x, y, scale, prerender, reasons) {
+async function renderSingleScale(
+  p: string,
+  zoom: number,
+  x: number,
+  y: number,
+  scale: number,
+  prerender: boolean,
+  reasons: string[],
+) {
   if (
     prerender &&
     global.processingExpiredTiles &&
@@ -118,7 +120,7 @@ async function renderSingleScale(p, zoom, x, y, scale, prerender, reasons) {
     if (coolDownPromise) {
       await coolDownPromise;
     } else {
-      coolDownPromise = new Promise((resolve) => {
+      coolDownPromise = new Promise<void>((resolve) => {
         setTimeout(() => {
           coolDownPromise = null;
           resolve();
@@ -180,8 +182,7 @@ async function renderSingleScale(p, zoom, x, y, scale, prerender, reasons) {
 
   let buffer;
 
-  /** @type number */
-  let t;
+  let t: number;
 
   try {
     try {
@@ -216,7 +217,7 @@ async function renderSingleScale(p, zoom, x, y, scale, prerender, reasons) {
       await Promise.all([
         im.premultiplyAsync(),
         (async () => {
-          await bgIm.fill(white);
+          await bgIm.fillAsync(white);
           await bgIm.premultiplyAsync();
         })(),
       ]);
@@ -247,12 +248,11 @@ async function renderSingleScale(p, zoom, x, y, scale, prerender, reasons) {
   t = Date.now();
 
   if (pngquantOptions) {
-    // @ts-ignore
     const child = spawn(pngquant, [...pngquantOptions, '-o', tmpName, '-'], {
       encoding: 'buffer',
     });
 
-    child.stdin.write(buffer);
+    child.stdin!.write(buffer);
 
     const { /*stdout, stderr,*/ code } = await child;
 
@@ -295,18 +295,11 @@ async function renderSingleScale(p, zoom, x, y, scale, prerender, reasons) {
   measure('write', Date.now() - t);
 }
 
-/**
- * @type {Map<string, { count: number, duration: number }>}
- */
-const measureMap = new Map();
+const measureMap = new Map<string, { count: number; duration: number }>();
 
 let lastMeasureResult = Date.now();
 
-/**
- * @param {string} operation
- * @param {number} duration
- */
-function measure(operation, duration) {
+function measure(operation: string, duration: number) {
   let a = measureMap.get(operation);
 
   if (!a) {
@@ -337,12 +330,11 @@ function measure(operation, duration) {
 }
 
 // used for requested single scale
-/**
- * @param {string} p
- * @param {object} tile
- * @param {string[]} reasons
- */
-async function shouldRender(p, tile, reasons) {
+async function shouldRender(
+  p: string,
+  tile: Tile & { reqScale: number },
+  reasons: string[],
+) {
   let s;
   try {
     s = await stat(
@@ -370,31 +362,21 @@ async function shouldRender(p, tile, reasons) {
 }
 
 let pdfLockCount = 0;
-const pdfUnlocks = [];
+const pdfUnlocks: (() => void)[] = [];
 
 // scale: my screen is 96 dpi, pdf is 72 dpi; 72 / 96 = 0.75
-/**
- * @param {string} destFile
- * @param {string} xml
- * @param {number} zoom
- * @param {[number, number, number, number]} bbox0
- * @param {number} scale
- * @param {number | undefined | null} width
- * @param {{ cancelled: boolean; } | undefined} cancelHolder
- * @param {string | undefined} format
- */
-async function exportMap(
-  destFile,
-  xml,
-  zoom,
-  bbox0,
+export async function exportMap(
+  destFile: string | undefined,
+  xml: string,
+  zoom: number,
+  bbox0: [number, number, number, number],
   scale = 1,
-  width,
-  cancelHolder,
-  format,
+  width: number | undefined | null,
+  cancelHolder: { cancelled: boolean } | undefined,
+  format: string,
 ) {
   if (pdfLockCount >= renderToPdfConcurrency) {
-    await new Promise((unlock) => {
+    await new Promise<void>((unlock) => {
       pdfUnlocks.push(unlock);
     });
   }
@@ -464,13 +446,7 @@ async function exportMap(
   }
 }
 
-/**
- * @param {number} zoom
- * @param {number} xtile
- * @param {number} ytile
- * @returns {[number, number]}
- */
-function transformCoords(zoom, xtile, ytile) {
+function transformCoords(zoom: number, xtile: number, ytile: number) {
   const n = Math.pow(2, zoom);
 
   const lon_deg = (xtile / n) * 360.0 - 180.0;

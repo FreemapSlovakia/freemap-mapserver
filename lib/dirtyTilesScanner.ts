@@ -1,29 +1,24 @@
-// @ts-check
+import path from 'path';
+import config from 'config';
+import { stat } from 'fs/promises';
+import { dirtyTiles } from './dirtyTilesRegister.js';
+import { tile2key, tileRangeGenerator } from './tileCalc.js';
+import { prerenderPolygon } from './config.js';
+import { PrerenderConfig } from './types.js';
 
-const path = require('path');
-const config = require('config');
-const { stat } = require('fs').promises;
-const { dirtyTiles } = require('./dirtyTilesRegister');
-const { tile2key } = require('./tileCalc');
-const { tileRangeGenerator } = require('./tileCalc');
-const { prerenderPolygon } = require('./config');
+const rerenderOlderThanMs: number | undefined = config.get(
+  'rerenderOlderThanMs',
+);
 
-const rerenderOlderThanMs = config.get('rerenderOlderThanMs');
+const extension: string = config.get('format.extension');
 
-/** @type string */
-const extension = config.get('format.extension');
+const limitScales: number[] = config.get('limits.scales');
 
-/** @type {number[]} */
-const limitScales = config.get('limits.scales');
+const prerenderConfig: PrerenderConfig = config.get('prerender');
 
-module.exports = {
-  fillDirtyTilesRegister,
-};
+const tilesDir: string = config.get('dirs.tiles');
 
-const prerenderConfig = config.get('prerender');
-const tilesDir = config.get('dirs.tiles');
-
-async function fillDirtyTilesRegister() {
+export async function fillDirtyTilesRegister() {
   console.log('Scanning dirty tiles.');
 
   const { minZoom, maxZoom } = prerenderConfig;
@@ -33,8 +28,8 @@ async function fillDirtyTilesRegister() {
     minZoom,
     maxZoom,
   )) {
-    /** @type {number} */
-    let mtimeMs;
+    let mtimeMs: number;
+
     try {
       // find oldest
       const proms = limitScales.map((scale) =>

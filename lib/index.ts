@@ -1,36 +1,37 @@
 // @ts-check
 
-const chokidar = require('chokidar');
-const config = require('config');
-
-const { prerender, resume } = require('./prerenderrer');
-const { fillDirtyTilesRegister } = require('./dirtyTilesScanner');
-const { processExpireFiles } = require('./expireFilesProcessor');
-const {
+import chokidar, { FSWatcher } from 'chokidar';
+import config from 'config';
+import { prerender, resume } from './prerenderrer.js';
+import { fillDirtyTilesRegister } from './dirtyTilesScanner.js';
+import { processExpireFiles } from './expireFilesProcessor.js';
+import {
   listenHttp,
   closeServer,
   setMapnikConfigFactory,
-} = require('./httpServer');
-const { getPool, initPool } = require('./mapnikPool');
-const { cleanupOutOfBoundTiles } = require('./outOfBoundsCleaner');
+} from './httpServer.js';
+import { getPool, initPool } from './mapnikPool.js';
+import { cleanupOutOfBoundTiles } from './outOfBoundsCleaner.js';
+import { Legend, MapnikConfigFactory, PrerenderConfig } from './types.js';
 
-const cleanup = config.get('limits.cleanup');
+const cleanup: boolean = config.get('limits.cleanup');
 
-module.exports = { startMapserver };
-
-function startMapserver(mapnikConfig, mapnikConfigFactory, legend) {
-  const prerenderConfig = config.get('prerender');
-  const tilesDir = config.get('dirs.tiles');
-  const expiresDir = config.get('dirs.expires');
+export function startMapserver(
+  mapnikConfig: string,
+  mapnikConfigFactory: MapnikConfigFactory,
+  legend: Legend,
+) {
+  const prerenderConfig: PrerenderConfig = config.get('prerender');
+  const tilesDir: string = config.get('dirs.tiles');
+  const expiresDir: string = config.get('dirs.expires');
 
   setMapnikConfigFactory(mapnikConfigFactory, legend);
 
   initPool(mapnikConfig);
 
-  const pool = getPool();
+  const pool = getPool(1);
 
-  /** @type {chokidar.FSWatcher} */
-  let watcher;
+  let watcher: FSWatcher;
 
   pool.on('factoryCreateError', async (error) => {
     console.error('Error creating or configuring Mapnik:', error);
@@ -53,6 +54,7 @@ function startMapserver(mapnikConfig, mapnikConfigFactory, legend) {
     console.info(`Processing new expire files (depth: ${depth}).`);
 
     depth++;
+
     if (depth > 1) {
       return;
     }
@@ -64,7 +66,7 @@ function startMapserver(mapnikConfig, mapnikConfigFactory, legend) {
 
       resume();
 
-      retry |= depth > 1;
+      retry ||= depth > 1;
 
       depth = 0;
 
@@ -89,12 +91,14 @@ function startMapserver(mapnikConfig, mapnikConfigFactory, legend) {
         listenHttp();
 
         watcher = chokidar.watch(expiresDir);
+
         watcher.on('add', processNewDirties);
 
         return prerender();
       })
       .catch((err) => {
         console.error('Error filling dirty tiles register', err);
+
         process.exit(1);
       });
   } else {

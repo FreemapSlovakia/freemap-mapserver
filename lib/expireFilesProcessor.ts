@@ -1,50 +1,56 @@
 // @ts-check
 
-const config = require('config');
-const path = require('path');
-const { readdir, readFile, unlink, open, access } = require('fs').promises;
-const {
+import config from 'config';
+import path from 'path';
+import {
+  readdir,
+  readFile,
+  unlink,
+  open,
+  access,
+  FileHandle,
+} from 'fs/promises';
+import {
   computeZoomedTiles,
   tile2key,
   tileOverlapsLimits,
-} = require('./tileCalc');
-const { dirtyTiles } = require('./dirtyTilesRegister');
-const { prerenderPolygon } = require('./config');
-const { flock } = require('fs-ext');
-const { promisify } = require('util');
+} from './tileCalc.js';
+import { dirtyTiles } from './dirtyTilesRegister.js';
+import { prerenderPolygon } from './config.js';
+import { flock } from 'fs-ext';
+import { promisify } from 'util';
+import { PrerenderConfig, Tile } from './types.js';
+import { PathLike } from 'fs';
 
-const flockAsync = promisify(flock);
+const flockAsync = promisify(
+  flock as (
+    fd: number,
+    flags: 'sh' | 'ex' | 'shnb' | 'exnb' | 'un',
+    callback: (err: NodeJS.ErrnoException | null) => void,
+  ) => void,
+);
 
-/** @type string */
-const expiresDir = config.get('dirs.expires');
+const expiresDir: string = config.get('dirs.expires');
 
-/** @type number[] */
-const limitScales = config.get('limits.scales');
+const limitScales: number[] = config.get('limits.scales');
 
-/** @type number */
-const minZoom = config.get('limits.minZoom');
+const minZoom: number = config.get('limits.minZoom');
 
-/** @type string */
-const extension = config.get('format.extension');
+const extension: string = config.get('format.extension');
 
-const prerenderConfig = config.get('prerender');
+const prerenderConfig: PrerenderConfig = config.get('prerender');
 
 const minExpiredBatchSize = config.get('minExpiredBatchSize');
 
 const expiresZoom = config.get('expiresZoom');
 
-module.exports = { processExpireFiles };
-
-/**
- * @param {string} tilesDir
- */
-async function processExpireFiles(tilesDir) {
+export async function processExpireFiles(tilesDir: string) {
   console.log('Processing expire files.');
 
   const dirs = await readdir(expiresDir);
 
-  const expireFiles = [].concat(
-    ...(await Promise.all(
+  const expireFiles = (
+    await Promise.all(
       dirs
         .map((dirs) => path.join(expiresDir, dirs))
         .map(async (dir) =>
@@ -52,15 +58,14 @@ async function processExpireFiles(tilesDir) {
             tileFiles.map((tileFile) => path.join(dir, tileFile)),
           ),
         ),
-    )),
-  );
+    )
+  ).flat();
 
   const expireFilesLen = expireFiles.length;
 
   expireFiles.sort();
 
-  /** @type Set<import('./types').Tile> */
-  const tiles = new Set();
+  const tiles = new Set<Tile>();
 
   let n = 0;
 
@@ -87,9 +92,9 @@ async function processExpireFiles(tilesDir) {
 
   expireFiles.splice(n, expireFiles.length - n);
 
-  const outzoomExpiredTiles = new Set();
+  const outzoomExpiredTiles = new Set<string>();
 
-  const collect = ({ zoom, x, y }) => {
+  const collect = ({ zoom, x, y }: Tile) => {
     outzoomExpiredTiles.add(`${zoom}/${x}/${y}`);
   };
 
@@ -111,7 +116,7 @@ async function processExpireFiles(tilesDir) {
       return res && [Date.now() - t];
     };
 
-    let tt;
+    let tt: false | number[];
 
     if (
       !tileOverlapsLimits(prerenderPolygon, { zoom, x, y }) ||
@@ -148,14 +153,14 @@ async function processExpireFiles(tilesDir) {
     if (zoom === expiresZoom) {
       let len = 0;
 
-      let fh;
+      let fh: FileHandle | undefined;
 
       const t = Date.now();
 
       try {
         fh = await open(path.resolve(tilesDir, `${tile}.index`), 'r+');
       } catch (err) {
-        if (err.code !== 'ENOENT') {
+        if (isNodeError(err) && err.code !== 'ENOENT') {
           throw err;
         }
       }
@@ -163,7 +168,7 @@ async function processExpireFiles(tilesDir) {
       if (fh) {
         await flockAsync(fh.fd, 'ex');
 
-        const items = (await fh.readFile('UTF-8'))
+        const items = (await fh.readFile({ encoding: 'utf-8' }))
           .split('\n')
           .filter((line) => line);
 
@@ -200,12 +205,16 @@ async function processExpireFiles(tilesDir) {
   return expireFiles.length !== expireFilesLen;
 }
 
-async function exists(file) {
+async function exists(file: PathLike) {
   try {
     await access(file);
 
     return true;
-  } catch (_) {
+  } catch {
     return false;
   }
+}
+
+function isNodeError(err: unknown): err is NodeJS.ErrnoException {
+  return err instanceof Error && 'code' in err;
 }

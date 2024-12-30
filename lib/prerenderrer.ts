@@ -1,21 +1,12 @@
-// @ts-check
+import config from 'config';
+import { cpus } from 'os';
+import { dirtyTiles } from './dirtyTilesRegister.js';
+import { renderTile } from './renderrer.js';
+import { Worker } from 'worker_threads';
+import { Tile } from './types.js';
 
-/**
- * @typedef {import('./types').Tile} Tile
- */
-
-const config = require('config');
-const { cpus } = require('os');
-const { dirtyTiles } = require('./dirtyTilesRegister');
-const { renderTile } = require('./renderrer');
-const { Worker } = require('worker_threads');
-
-module.exports = {
-  prerender,
-  resume,
-};
-
-const prerenderConfig = config.get('prerender');
+const prerenderConfig: { zoomPrio: number[]; workers: number } =
+  config.get('prerender');
 
 const sortWorker =
   prerenderConfig &&
@@ -25,19 +16,19 @@ const sortWorker =
     },
   });
 
-/** @type {Set<() => void>} */
-const resumes = new Set();
+const resumes = new Set<() => void>();
 
-function resume() {
+export function resume() {
   console.log('Resuming pre-rendering. Dirty tiles:', dirtyTiles.size);
 
   for (const rf of resumes) {
     rf();
   }
+
   resumes.clear();
 }
 
-async function prerender() {
+export async function prerender() {
   console.log('Starting pre-renderrer.');
 
   const tiles = findTilesToRender();
@@ -56,6 +47,7 @@ async function prerender() {
  */
 async function* findTilesToRender() {
   let restart = false;
+
   function setRestartFlag() {
     restart = true;
   }
@@ -65,18 +57,21 @@ async function* findTilesToRender() {
 
     console.log('(Re)starting pre-rendering worker.');
 
-    const tiles = await new Promise((resolve) => {
-      sortWorker.once('message', (value) => {
+    const tiles = await new Promise<Tile[]>((resolve) => {
+      sortWorker.once('message', (value: Tile[]) => {
         resolve(value);
       });
+
       sortWorker.postMessage([...dirtyTiles.values()]);
     });
 
     for (const t of tiles) {
       if (restart) {
         restart = false;
+
         continue main;
       }
+
       yield t;
     }
 
@@ -84,16 +79,13 @@ async function* findTilesToRender() {
 
     console.log('Putting pre-rendering worker to sleep.');
 
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       resumes.add(resolve);
     });
   }
 }
 
-/**
- * @param {AsyncIterableIterator<Tile>} tiles
- */
-async function worker(tiles) {
+async function worker(tiles: AsyncIterableIterator<Tile>) {
   for await (const { x, y, zoom } of tiles) {
     await renderTile(zoom, x, y);
   }

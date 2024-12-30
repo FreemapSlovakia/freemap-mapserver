@@ -1,58 +1,51 @@
-const fs = require('fs').promises;
-const os = require('os');
-const path = require('path');
-const http = require('http');
-const { koaBody } = require('koa-body');
-const Ajv = require('ajv').default;
-const crypto = require('crypto');
-const config = require('config');
-const Koa = require('koa');
-const Router = require('koa-router');
-const send = require('koa-send');
-const cors = require('@koa/cors');
-const mapnik = require('mapnik');
+import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import http from 'http';
+import { koaBody } from 'koa-body';
+import { Ajv } from 'ajv';
+import crypto from 'crypto';
+import config from 'config';
+import Koa, { Context } from 'koa';
+import Router from 'koa-router';
+import send from 'koa-send';
+import cors from '@koa/cors';
+import mapnik from 'mapnik';
 
-const { renderTile, exportMap } = require('./renderrer');
-const { tileOverlapsLimits } = require('./tileCalc');
-const { limitPolygon } = require('./config');
-
-/**
- * @typedef {import('koa-router').RouterContext} RouterContext
- * @typedef {import('geojson').FeatureCollection} FeatureCollection
- * @typedef {import('json-schema').JSONSchema7} JSONSchema7
- */
+import { renderTile, exportMap } from './renderrer.js';
+import { tileOverlapsLimits } from './tileCalc.js';
+import { limitPolygon } from './config.js';
+import { JSONSchema7 } from 'json-schema';
+import { Legend, MapnikConfigFactory } from './types.js';
+import { FeatureCollection } from 'geojson';
 
 const app = new Koa();
 
 const router = new Router();
 
-/** @type number[] */
-const limitScales = config.get('limits.scales');
+const limitScales: number[] = config.get('limits.scales');
 
 const serverOptions = config.get('server');
 
-const tilesDir = config.get('dirs.tiles');
+const tilesDir: string = config.get('dirs.tiles');
 
 const notFoundAsTransparent = config.get('notFoundAsTransparent');
 
-/** @type string */
-const mimeType = config.get('format.mimeType');
+const mimeType: string = config.get('format.mimeType');
 
-/** @type number */
-const minZoom = config.get('limits.minZoom');
+const minZoom: number = config.get('limits.minZoom');
 
-/** @type number */
-const maxZoom = config.get('limits.maxZoom');
+const maxZoom: number = config.get('limits.maxZoom');
 
-let generateMapnikConfig;
+let generateMapnikConfig: MapnikConfigFactory;
 
-let legend;
+let legend: Legend;
 
 const white = new mapnik.Color('white');
 
 const images = new Map();
 
-async function getTileMiddleware(ctx) {
+async function getTileMiddleware(ctx: Context) {
   const { zz, xx, yy } = ctx.params;
 
   const yyMatch = /(\d+)(?:@(\d+(?:\.\d+)?)x)?/.exec(yy);
@@ -95,7 +88,7 @@ async function getTileMiddleware(ctx) {
     if (!body) {
       const im = new mapnik.Image(256 * scale, 256 * scale);
 
-      await im.fill(white);
+      await im.fillAsync(white);
 
       images.set(scale, await im.encodeAsync('png8:c=1:t=0'));
     }
@@ -114,7 +107,7 @@ async function getTileMiddleware(ctx) {
 
   const file = await renderTile(zoom, x, y, scale);
 
-  const stats = await fs.stat(file);
+  const stats = await fs.stat(file!);
 
   ctx.set('Last-Modified', stats.mtime.toUTCString());
 
@@ -126,10 +119,16 @@ async function getTileMiddleware(ctx) {
 
   ctx.mimeType = mimeType;
 
-  await send(ctx, path.relative(tilesDir, file), { root: tilesDir });
+  await send(ctx, path.relative(tilesDir, file!), { root: tilesDir });
 }
 
 router.get('/:zz/:xx/:yy', getTileMiddleware);
+
+function getQueryParam(ctx: Context, key: string) {
+  const value = ctx.query[key];
+
+  return Array.isArray(value) ? value[0] : value;
+}
 
 // TODO make more configurable and less hardcoded
 // TODO return better error responses
@@ -144,7 +143,12 @@ router.get('/service', async (ctx) => {
     TILEROW,
     LAYER,
     FORMAT,
-  } = ctx.query;
+  } = Object.fromEntries(
+    Object.entries(ctx.query).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? value[0] : value,
+    ]),
+  );
 
   if (SERVICE !== 'WMTS' || (VERSION && VERSION !== '1.0.0')) {
     ctx.status = 400;
@@ -159,9 +163,9 @@ router.get('/service', async (ctx) => {
     FORMAT === 'image/jpeg'
   ) {
     ctx.params = {
-      zz: TILEMATRIX,
-      xx: TILECOL,
-      yy: TILEROW,
+      zz: TILEMATRIX!,
+      xx: TILECOL!,
+      yy: TILEROW!,
     };
 
     return getTileMiddleware(ctx);
@@ -172,9 +176,9 @@ router.get('/service', async (ctx) => {
     FORMAT === 'image/jpeg'
   ) {
     ctx.params = {
-      zz: TILEMATRIX,
-      xx: TILECOL,
-      yy: TILEROW + '@2x',
+      zz: TILEMATRIX!,
+      xx: TILECOL!,
+      yy: TILEROW! + '@2x',
     };
 
     return getTileMiddleware(ctx);
@@ -639,9 +643,9 @@ router.get('/service', async (ctx) => {
 });
 
 router.get('/legend', async (ctx) => {
-  const { language } = ctx.query;
+  const language = getQueryParam(ctx, 'language');
 
-  function msg(messages) {
+  function msg(messages: Record<string, string>) {
     return (
       messages[
         language || ctx.acceptsLanguages(Object.keys(messages)) || 'en'
@@ -692,8 +696,7 @@ router.get('/legend-image/:id', async (ctx) => {
 
 const ajv = new Ajv();
 
-/** @type JSONSchema7 */
-const schema = {
+const schema: JSONSchema7 = {
   type: 'object',
   required: ['zoom', 'bbox'],
   properties: {
@@ -796,7 +799,7 @@ exportRouter.post('/', koaBody({ jsonLimit: '16mb' }), async (ctx) => {
   ctx.req.on('close', cancelHandler);
 
   /** @type FeatureCollection */
-  const { custom } = ctx.request.body;
+  const { custom } = ctx.request.body as { custom: FeatureCollection };
 
   try {
     jobMap.set(token, {
@@ -868,7 +871,7 @@ app.use(cors()).use(router.routes()).use(router.allowedMethods());
 // @ts-ignore
 const server = http.createServer(app.callback());
 
-function listenHttp() {
+export function listenHttp() {
   if (serverOptions) {
     server.listen(serverOptions, () => {
       console.log(`HTTP server listening.`);
@@ -876,15 +879,16 @@ function listenHttp() {
   }
 }
 
-function closeServer() {
+export function closeServer() {
   server.close();
 }
 
 // TODO ugly as hell
-function setMapnikConfigFactory(_generateMapnikConfig, _legend) {
+export function setMapnikConfigFactory(
+  _generateMapnikConfig: MapnikConfigFactory,
+  _legend: Legend,
+) {
   generateMapnikConfig = _generateMapnikConfig;
 
   legend = _legend;
 }
-
-module.exports = { listenHttp, closeServer, setMapnikConfigFactory };

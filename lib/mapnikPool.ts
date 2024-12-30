@@ -1,17 +1,16 @@
-const { promisify } = require('util');
-const { cpus } = require('os');
+import { promisify } from 'util';
+import { cpus } from 'os';
+import mapnik from 'mapnik';
+import config from 'config';
+import genericPool, { Pool } from 'generic-pool';
 
-const mapnik = require('mapnik');
-const config = require('config');
-const genericPool = require('generic-pool');
-
-const workers = config.get('workers');
+const workers: { min?: number; max?: number } = config.get('workers');
 
 const nCpus = cpus().length;
 
-let mapnikConfig1;
+let mapnikConfig1: string;
 
-function initPool(mapnikConfig) {
+export function initPool(mapnikConfig: string) {
   mapnikConfig1 = mapnikConfig;
 
   mapnik.register_default_fonts();
@@ -48,9 +47,9 @@ function initPool(mapnikConfig) {
   mapnik.Image.prototype.clearAsync = promisify(mapnik.Image.prototype.clear);
 }
 
-const poolMap = new Map();
+const poolMap = new Map<string, Pool<mapnik.Map>>();
 
-function getPool(scale) {
+export function getPool(scale: number) {
   let pool = poolMap.get('map-' + scale);
 
   if (!pool) {
@@ -80,9 +79,9 @@ function getPool(scale) {
   return pool;
 }
 
-const imagePoolMap = new Map();
+const imagePoolMap = new Map<string, Pool<mapnik.Image>>();
 
-function getImagePool(key, scale) {
+export function getImagePool(key: string, scale: number) {
   let pool = imagePoolMap.get(key + '-' + scale);
 
   if (!pool) {
@@ -95,7 +94,7 @@ function getImagePool(key, scale) {
         // nothing to do
       },
 
-      async validate(obj) {
+      async validate(obj: mapnik.Image) {
         await obj.clearAsync();
 
         return true;
@@ -112,5 +111,3 @@ function getImagePool(key, scale) {
 
   return pool;
 }
-
-module.exports = { getPool, initPool, getImagePool };
