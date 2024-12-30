@@ -17,7 +17,6 @@ import { tileOverlapsLimits } from './tileCalc.js';
 import { limitPolygon } from './config.js';
 import { JSONSchema7 } from 'json-schema';
 import { Legend, MapnikConfigFactory } from './types.js';
-import { FeatureCollection } from 'geojson';
 
 const app = new Koa();
 
@@ -798,9 +797,6 @@ exportRouter.post('/', koaBody({ jsonLimit: '16mb' }), async (ctx) => {
 
   ctx.req.on('close', cancelHandler);
 
-  /** @type FeatureCollection */
-  const { custom } = ctx.request.body as { custom: FeatureCollection };
-
   try {
     jobMap.set(token, {
       exportFile,
@@ -808,7 +804,7 @@ exportRouter.post('/', koaBody({ jsonLimit: '16mb' }), async (ctx) => {
       cancelHandler,
       promise: exportMap(
         exportFile,
-        generateMapnikConfig({ features, custom, format }),
+        generateMapnikConfig(ctx.request.body),
         zoom,
         bbox,
         scale,

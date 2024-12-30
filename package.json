@@ -41,5 +41,8 @@
   },
   "scripts": {
     "build": "tsc"
+  },
+  "exports": {
+    ".": "./dist/index.js"
   }
 }

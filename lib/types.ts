@@ -19,14 +19,7 @@ export type PrerenderConfig = {
   maxZoom: number;
 };
 
-export type MapnikConfigFactory = (
-  options: Partial<{
-    legendLayers: unknown;
-    features: unknown;
-    custom: unknown;
-    format: unknown;
-  }>,
-) => string;
+export type MapnikConfigFactory = (options: unknown) => string;
 
 export type Legend = {
   categories: {
@@ -38,6 +31,6 @@ export type Legend = {
     name: Record<string, string>;
     layers: unknown;
     zoom: number;
-    bbox: [number, number, number, number];
+    bbox: number[];
   }[];
 };

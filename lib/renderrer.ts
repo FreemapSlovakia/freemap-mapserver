@@ -369,7 +369,7 @@ export async function exportMap(
   destFile: string | undefined,
   xml: string,
   zoom: number,
-  bbox0: [number, number, number, number],
+  bbox: number[],
   scale = 1,
   width: number | undefined | null,
   cancelHolder: { cancelled: boolean } | undefined,
@@ -388,7 +388,7 @@ export async function exportMap(
   pdfLockCount++;
 
   try {
-    const bbox = merc.forward(bbox0);
+    bbox = merc.forward(bbox);
 
     // manually found constant; very close to 1e12 / 6378137 (radius of earth in m) = 156785.594289
     const q = Math.pow(2, zoom) / 156543; /* manually found constant */
