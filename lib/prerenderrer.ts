@@ -10,7 +10,7 @@ const prerenderConfig: { zoomPrio: number[]; workers: number } =
 
 const sortWorker =
   prerenderConfig &&
-  new Worker(__dirname + '/dirtyTilesSortWorker.js', {
+  new Worker(import.meta.dirname + '/dirtyTilesSortWorker.js', {
     workerData: {
       zoomPrio: prerenderConfig.zoomPrio,
     },
