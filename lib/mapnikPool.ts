@@ -1,6 +1,6 @@
 import { promisify } from 'util';
 import { cpus } from 'os';
-import mapnik from 'mapnik';
+import mapnik from '@mapnik/mapnik';
 import config from 'config';
 import genericPool, { Pool } from 'generic-pool';
 
@@ -14,6 +14,7 @@ export function initPool(mapnikConfig: string) {
   mapnikConfig1 = mapnikConfig;
 
   mapnik.register_default_fonts();
+
   mapnik.register_default_input_plugins();
 
   const mp = mapnik.Map.prototype;

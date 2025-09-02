@@ -1,6 +1,6 @@
 import path from 'path';
 import config from 'config';
-import mapnik from 'mapnik';
+import mapnik from '@mapnik/mapnik';
 import { rename, mkdir, unlink, stat, writeFile, open } from 'fs/promises';
 import { flock } from 'fs-ext';
 import { promisify } from 'util';
@@ -47,7 +47,10 @@ const prerenderDelayWhenExpiring: number | undefined = config.get(
   'prerenderDelayWhenExpiring',
 );
 
-const merc = new mapnik.Projection(mercSrs);
+const tx = new mapnik.ProjTransform(
+  new mapnik.Projection('EPSG:4326'),
+  new mapnik.Projection('EPSG:3857'),
+);
 
 mapnik.registerFonts(config.get('dirs.fonts'), { recurse: true });
 
@@ -189,7 +192,7 @@ async function renderSingleScale(
       t = Date.now();
 
       map.zoomToBox(
-        merc.forward([
+        tx.forward([
           ...transformCoords(zoom, x, y + 1),
           ...transformCoords(zoom, x + 1, y),
         ]),
@@ -268,9 +271,7 @@ async function renderSingleScale(
 
     await mkdir(
       path.resolve(tilesDir, String(expiresZoom), String(Math.floor(x / div))),
-      {
-        recursive: true,
-      },
+      { recursive: true },
     );
 
     const fh = await open(
@@ -369,7 +370,7 @@ export async function exportMap(
   destFile: string | undefined,
   xml: string,
   zoom: number,
-  bbox: number[],
+  bbox: [number, number, number, number],
   scale = 1,
   width: number | undefined | null,
   cancelHolder: { cancelled: boolean } | undefined,
@@ -388,7 +389,7 @@ export async function exportMap(
   pdfLockCount++;
 
   try {
-    bbox = merc.forward(bbox);
+    bbox = tx.forward(bbox);
 
     // manually found constant; very close to 1e12 / 6378137 (radius of earth in m) = 156785.594289
     const q = Math.pow(2, zoom) / 156543; /* manually found constant */
@@ -413,11 +414,7 @@ export async function exportMap(
         buffer_size: 256,
         scale_denominator,
         scale,
-        variables: {
-          zoom,
-          scale,
-          scale_denominator,
-        },
+        variables: { zoom, scale, scale_denominator },
       });
     } else {
       const im = new mapnik.Image(map.width, map.height);
@@ -455,7 +452,7 @@ function transformCoords(zoom: number, xtile: number, ytile: number) {
 
   const lat_deg = (lat_rad * 180.0) / Math.PI;
 
-  return [lon_deg, lat_deg];
+  return [lon_deg, lat_deg] as const;
 }
 
 // for (let i = 0; i < 1000000; i++) {

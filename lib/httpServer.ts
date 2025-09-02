@@ -7,10 +7,10 @@ import { Ajv } from 'ajv';
 import crypto from 'crypto';
 import config from 'config';
 import Koa, { Context } from 'koa';
-import Router from 'koa-router';
+import Router from '@koa/router';
 import send from 'koa-send';
 import cors from '@koa/cors';
-import mapnik from 'mapnik';
+import mapnik from '@mapnik/mapnik';
 
 import { renderTile, exportMap } from './renderrer.js';
 import { tileOverlapsLimits } from './tileCalc.js';
@@ -161,11 +161,7 @@ router.get('/service', async (ctx) => {
     TILEMATRIXSET === 'webmercator' &&
     FORMAT === 'image/jpeg'
   ) {
-    ctx.params = {
-      zz: TILEMATRIX!,
-      xx: TILECOL!,
-      yy: TILEROW!,
-    };
+    ctx.params = { zz: TILEMATRIX!, xx: TILECOL!, yy: TILEROW! };
 
     return getTileMiddleware(ctx);
   } else if (
@@ -174,11 +170,7 @@ router.get('/service', async (ctx) => {
     TILEMATRIXSET === 'webmercator_2x' &&
     FORMAT === 'image/jpeg'
   ) {
-    ctx.params = {
-      zz: TILEMATRIX!,
-      xx: TILECOL!,
-      yy: TILEROW! + '@2x',
-    };
+    ctx.params = { zz: TILEMATRIX!, xx: TILECOL!, yy: TILEROW! + '@2x' };
 
     return getTileMiddleware(ctx);
   } else if (REQUEST === 'GetCapabilities') {
@@ -679,9 +671,7 @@ router.get('/legend-image/:id', async (ctx) => {
     legendItem &&
     (await exportMap(
       undefined,
-      generateMapnikConfig({
-        legendLayers: legendItem.layers,
-      }),
+      generateMapnikConfig({ legendLayers: legendItem.layers }),
       legendItem.zoom,
       legendItem.bbox,
       scale,
@@ -720,12 +710,7 @@ const schema: JSONSchema7 = {
             type: 'object',
             required: ['styles', 'geojson'],
             properties: {
-              styles: {
-                type: 'array',
-                items: {
-                  type: 'string',
-                },
-              },
+              styles: { type: 'array', items: { type: 'string' } },
               geojson: {
                 type: 'object',
                 // TODO geojson schema
@@ -743,9 +728,7 @@ const schema: JSONSchema7 = {
                 type: 'object',
                 required: ['@name'],
                 properties: {
-                  '@name': {
-                    type: 'string',
-                  },
+                  '@name': { type: 'string' },
                   // TODO other mapnik props
                 },
               },
@@ -787,9 +770,7 @@ exportRouter.post('/', koaBody({ jsonLimit: '16mb' }), async (ctx) => {
 
   const exportFile = path.resolve(os.tmpdir(), filename);
 
-  const cancelHolder = {
-    cancelled: false,
-  };
+  const cancelHolder = { cancelled: false };
 
   const cancelHandler = () => {
     cancelHolder.cancelled = true;

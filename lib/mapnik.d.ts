@@ -55,4 +55,15 @@ declare module 'mapnik' {
   class Color {
     constructor(value: string);
   }
+
+  interface ProjTransform {
+    forward<T extends [number, number] | [number, number, number, number]>(
+      coord: T,
+    ): T;
+    backwardd<T extends [number, number] | [number, number, number, number]>(
+      coord: T,
+    ): T;
+  }
+  // ctor type; avoids overwriting if it already exists
+  var ProjTransform: { new (src: Projection, dst: Projection): ProjTransform };
 }
