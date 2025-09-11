@@ -755,14 +755,7 @@ exportRouter.post('/', koaBody({ jsonLimit: '16mb' }), async (ctx) => {
     ctx.throw(400, ajv.errorsText(validate.errors));
   }
 
-  const {
-    zoom,
-    bbox,
-    format = 'pdf',
-    features,
-    scale,
-    width,
-  } = ctx.request.body;
+  const { zoom, bbox, format = 'pdf', scale, width } = ctx.request.body;
 
   const token = crypto.randomBytes(16).toString('hex');
 
@@ -845,13 +838,12 @@ router.use('/export', exportRouter.routes(), exportRouter.allowedMethods());
 
 app.use(cors()).use(router.routes()).use(router.allowedMethods());
 
-// @ts-ignore
 const server = http.createServer(app.callback());
 
 export function listenHttp() {
   if (serverOptions) {
     server.listen(serverOptions, () => {
-      console.log(`HTTP server listening.`);
+      console.log(`HTTP server listening.`, serverOptions);
     });
   }
 }
