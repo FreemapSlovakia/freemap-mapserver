@@ -8,8 +8,6 @@ export type DirtyTile = Tile & { zoom: number; ts: number; dt: number };
 
 export type PrerenderConfig = { minZoom: number; maxZoom: number };
 
-export type MapnikConfigFactory = (options: unknown) => string;
-
 export type Legend = {
   categories: { id: unknown; name: Record<string, string> }[];
   items: {

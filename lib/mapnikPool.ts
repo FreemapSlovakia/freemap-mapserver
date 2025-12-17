@@ -1,114 +1,164 @@
-import { promisify } from 'util';
 import { cpus } from 'os';
-import mapnik from '@mapnik/mapnik';
 import config from 'config';
-import genericPool, { Pool } from 'generic-pool';
+import genericPool, { Factory } from 'generic-pool';
+import { Worker } from 'worker_threads';
+import {
+  RenderFormat,
+  RenderRequest,
+  RenderResponse,
+  RenderResult,
+} from './renderWorker.js';
 
 const workers: { min?: number; max?: number } = config.get('workers');
 
 const nCpus = cpus().length;
 
-let mapnikConfig1: string;
+type RendererConfig = {
+  connectionString: string;
+  hillshadingBase: string;
+  svgBase: string;
+};
 
-export function initPool(mapnikConfig: string) {
-  mapnikConfig1 = mapnikConfig;
+let rendererConfig: RendererConfig = {
+  connectionString: 'postgres://martin:b0n0@localhost/martin',
+  hillshadingBase: '/home/martin/14TB/hillshading',
+  svgBase: '/home/martin/fm/maprender/images',
+};
 
-  mapnik.register_default_fonts();
+type WorkerRenderer = {
+  waitReady: () => Promise<void>;
+  render: (
+    bbox: [number, number, number, number],
+    zoom: number,
+    scale?: number,
+    format?: RenderFormat,
+  ) => Promise<RenderResult>;
+  terminate: () => Promise<void>;
+};
 
-  mapnik.register_default_input_plugins();
+function createWorkerRenderer(worker: Worker): WorkerRenderer {
+  const pending = new Map<
+    number,
+    {
+      resolve: (value: RenderResult) => void;
+      reject: (err: Error) => void;
+    }
+  >();
+  let nextId = 1;
+  let readyResolve: (() => void) | undefined;
+  let readyReject: ((err: Error) => void) | undefined;
 
-  const mp = mapnik.Map.prototype;
+  const readyPromise = new Promise<void>((resolve, reject) => {
+    readyResolve = resolve;
+    readyReject = reject;
+  });
 
-  mp.fromStringAsync = promisify(mp.fromString);
+  const handleFailure = (err: Error) => {
+    for (const pendingItem of pending.values()) {
+      pendingItem.reject(err);
+    }
 
-  mp.renderFileAsync = promisify(mp.renderFile);
+    pending.clear();
 
-  mp.renderAsync = promisify(mp.render);
+    if (readyReject) {
+      readyReject(err);
+      readyReject = undefined;
+      readyResolve = undefined;
+    }
+  };
 
-  mapnik.Image.prototype.encodeAsync = promisify(mapnik.Image.prototype.encode);
+  worker.on('message', (message: RenderResponse) => {
+    if (message.type === 'ready') {
+      if (readyResolve) {
+        readyResolve();
+      }
 
-  mapnik.Image.prototype.compositeAsync = promisify(
-    mapnik.Image.prototype.composite,
-  );
+      readyResolve = undefined;
+      readyReject = undefined;
+      return;
+    }
 
-  mapnik.Image.prototype.premultiplyAsync = promisify(
-    mapnik.Image.prototype.premultiply,
-  );
+    const pendingItem = pending.get(message.id);
 
-  mapnik.Image.prototype.demultiplyAsync = promisify(
-    mapnik.Image.prototype.demultiply,
-  );
+    if (!pendingItem) {
+      throw new Error('no such pending request: ' + message.id);
+    }
 
-  mapnik.Image.prototype.resizeAsync = promisify(mapnik.Image.prototype.resize);
+    pending.delete(message.id);
 
-  mapnik.Image.prototype.fillAsync = promisify(mapnik.Image.prototype.fill);
+    if (message.type === 'error') {
+      const err = new Error(message.error.message);
+      err.name = message.error.name || err.name;
+      err.stack = message.error.stack || err.stack;
+      pendingItem.reject(err);
+      return;
+    }
 
-  mapnik.Image.prototype.filterAsync = promisify(mapnik.Image.prototype.filter);
+    pendingItem.resolve({
+      data: Buffer.from(message.result.data),
+      contentType: message.result.contentType,
+    });
+  });
 
-  mapnik.Image.prototype.clearAsync = promisify(mapnik.Image.prototype.clear);
+  worker.on('error', (err) => {
+    handleFailure(err);
+  });
+
+  worker.on('exit', (code) => {
+    if (code !== 0) {
+      handleFailure(new Error(`Render worker exited with code ${code}`));
+    }
+  });
+
+  const waitReady = () => readyPromise;
+
+  const render = async (
+    bbox: [number, number, number, number],
+    zoom: number,
+    scale?: number,
+    format?: RenderFormat,
+  ): Promise<RenderResult> => {
+    await readyPromise;
+
+    return new Promise<RenderResult>((resolve, reject) => {
+      const id = nextId++;
+      pending.set(id, { resolve, reject });
+
+      worker.postMessage({
+        id,
+        bbox,
+        zoom,
+        scale,
+        format,
+      } satisfies RenderRequest);
+    });
+  };
+
+  const terminate = async () => {
+    await worker.terminate();
+  };
+
+  return { waitReady, render, terminate };
 }
 
-const poolMap = new Map<string, Pool<mapnik.Map>>();
-
-export function getPool(scale: number) {
-  let pool = poolMap.get('map-' + scale);
-
-  if (!pool) {
-    const factory = {
-      async create() {
-        const map = new mapnik.Map(256 * scale, 256 * scale);
-
-        await map.fromStringAsync(mapnikConfig1);
-
-        return map;
-      },
-
-      async destroy() {
-        // nothing to do
-      },
-    };
-
-    pool = genericPool.createPool(factory, {
-      max: 'max' in workers ? workers.max : nCpus,
-      min: 'min' in workers ? workers.min : nCpus,
-      priorityRange: 2,
+const factory: Factory<WorkerRenderer> = {
+  async create() {
+    const worker = new Worker(import.meta.dirname + '/renderWorker.js', {
+      workerData: rendererConfig,
     });
 
-    poolMap.set('map-' + scale, pool);
-  }
+    const renderer = createWorkerRenderer(worker);
+    await renderer.waitReady();
+    return renderer;
+  },
 
-  return pool;
-}
+  async destroy(renderer: WorkerRenderer) {
+    await renderer.terminate();
+  },
+};
 
-const imagePoolMap = new Map<string, Pool<mapnik.Image>>();
-
-export function getImagePool(key: string, scale: number) {
-  let pool = imagePoolMap.get(key + '-' + scale);
-
-  if (!pool) {
-    const imageFactory = {
-      async create() {
-        return new mapnik.Image(256 * scale, 256 * scale);
-      },
-
-      async destroy() {
-        // nothing to do
-      },
-
-      async validate(obj: mapnik.Image) {
-        await obj.clearAsync();
-
-        return true;
-      },
-    };
-
-    pool = genericPool.createPool(imageFactory, {
-      testOnBorrow: true,
-      max: 100, // TODO configurable
-    });
-
-    imagePoolMap.set(key + '-' + scale, pool);
-  }
-
-  return pool;
-}
+export const pool = genericPool.createPool(factory, {
+  max: 'max' in workers ? workers.max : nCpus,
+  min: 'min' in workers ? workers.min : nCpus,
+  priorityRange: 2,
+});

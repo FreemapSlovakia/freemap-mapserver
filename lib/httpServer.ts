@@ -10,13 +10,12 @@ import Koa, { Context } from 'koa';
 import Router from '@koa/router';
 import send from 'koa-send';
 import cors from '@koa/cors';
-import mapnik from '@mapnik/mapnik';
 
 import { renderTile, exportMap } from './renderrer.js';
 import { tileOverlapsLimits } from './tileCalc.js';
 import { limitPolygon } from './config.js';
 import { JSONSchema7 } from 'json-schema';
-import { Legend, MapnikConfigFactory } from './types.js';
+import { Legend } from './types.js';
 
 const app = new Koa();
 
@@ -36,13 +35,7 @@ const minZoom: number = config.get('limits.minZoom');
 
 const maxZoom: number = config.get('limits.maxZoom');
 
-let generateMapnikConfig: MapnikConfigFactory;
-
 let legend: Legend;
-
-const white = new mapnik.Color('white');
-
-const images = new Map();
 
 async function getTileMiddleware(ctx: Context) {
   const { zz, xx, yy } = ctx.params;
@@ -76,32 +69,12 @@ async function getTileMiddleware(ctx: Context) {
     (limitPolygon && !tileOverlapsLimits(limitPolygon, { zoom, x, y })) ||
     !limitScales.includes(scale)
   ) {
-    if (!notFoundAsTransparent) {
-      ctx.throw(404);
-    }
+    ctx.throw(404);
 
-    ctx.type = 'image/png';
-
-    let body = images.get(scale);
-
-    if (!body) {
-      const im = new mapnik.Image(256 * scale, 256 * scale);
-
-      await im.fillAsync(white);
-
-      images.set(scale, await im.encodeAsync('png8:c=1:t=0'));
-    }
-
-    ctx.body = body;
-
-    // white 1x1
-    // ctx.body = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
-    // transparent 1x1:
-    // ctx.body = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0xff,
-    //   0xff, 0xff, 0x00, 0x00, 0x00, 0x21, 0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00,
-    //   0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b]);
-
-    return;
+    // TODO
+    //   if (!notFoundAsTransparent) {
+    //   ctx.throw(404);
+    // }
   }
 
   const file = await renderTile(zoom, x, y, scale);
@@ -633,55 +606,55 @@ router.get('/service', async (ctx) => {
   ctx.status = 400;
 });
 
-router.get('/legend', async (ctx) => {
-  const language = getQueryParam(ctx, 'language');
+// router.get('/legend', async (ctx) => {
+//   const language = getQueryParam(ctx, 'language');
 
-  function msg(messages: Record<string, string>) {
-    return (
-      messages[
-        language || ctx.acceptsLanguages(Object.keys(messages)) || 'en'
-      ] || messages['en']
-    );
-  }
+//   function msg(messages: Record<string, string>) {
+//     return (
+//       messages[
+//         language || ctx.acceptsLanguages(Object.keys(messages)) || 'en'
+//       ] || messages['en']
+//     );
+//   }
 
-  ctx.body = {
-    categories: legend.categories.map((item) => ({
-      id: item.id,
-      name: msg(item.name),
-    })),
-    items: legend.items.map((item) => ({
-      categoryId: item.categoryId,
-      name: msg(item.name),
-    })),
-  };
-});
+//   ctx.body = {
+//     categories: legend.categories.map((item) => ({
+//       id: item.id,
+//       name: msg(item.name),
+//     })),
+//     items: legend.items.map((item) => ({
+//       categoryId: item.categoryId,
+//       name: msg(item.name),
+//     })),
+//   };
+// });
 
-router.get('/legend-image/:id', async (ctx) => {
-  // TODO schema validation
+// router.get('/legend-image/:id', async (ctx) => {
+//   // TODO schema validation
 
-  const legendItem = legend.items[Number(ctx.params.id)];
+//   const legendItem = legend.items[Number(ctx.params.id)];
 
-  ctx.set('Content-Type', 'image/png');
+//   ctx.set('Content-Type', 'image/png');
 
-  // 360 = 256 * 2^zoom
+//   // 360 = 256 * 2^zoom
 
-  const scale = (ctx.query.scale && Number(ctx.query.scale)) || 1;
+//   const scale = (ctx.query.scale && Number(ctx.query.scale)) || 1;
 
-  ctx.body =
-    legendItem &&
-    (await exportMap(
-      undefined,
-      generateMapnikConfig({ legendLayers: legendItem.layers }),
-      legendItem.zoom,
-      legendItem.bbox,
-      scale,
-      scale *
-        (legendItem.bbox[2] - legendItem.bbox[0]) *
-        Math.pow(2, legendItem.zoom),
-      undefined,
-      'png',
-    ));
-});
+//   ctx.body =
+//     legendItem &&
+//     (await exportMap(
+//       undefined,
+//       generateMapnikConfig({ legendLayers: legendItem.layers }),
+//       legendItem.zoom,
+//       legendItem.bbox,
+//       scale,
+//       scale *
+//         (legendItem.bbox[2] - legendItem.bbox[0]) *
+//         Math.pow(2, legendItem.zoom),
+//       undefined,
+//       'png',
+//     ));
+// });
 
 const ajv = new Ajv();
 
@@ -755,7 +728,7 @@ exportRouter.post('/', koaBody({ jsonLimit: '16mb' }), async (ctx) => {
     ctx.throw(400, ajv.errorsText(validate.errors));
   }
 
-  const { zoom, bbox, format = 'pdf', scale, width } = ctx.request.body;
+  const { zoom, bbox, format = 'pdf', scale } = ctx.request.body as any;
 
   const token = crypto.randomBytes(16).toString('hex');
 
@@ -776,16 +749,7 @@ exportRouter.post('/', koaBody({ jsonLimit: '16mb' }), async (ctx) => {
       exportFile,
       filename,
       cancelHandler,
-      promise: exportMap(
-        exportFile,
-        generateMapnikConfig(ctx.request.body),
-        zoom,
-        bbox,
-        scale,
-        width,
-        cancelHolder,
-        format,
-      ),
+      promise: exportMap(exportFile, zoom, bbox, scale, cancelHolder, format),
     });
   } finally {
     ctx.req.off('close', cancelHandler);
@@ -850,14 +814,4 @@ export function listenHttp() {
 
 export function closeServer() {
   server.close();
-}
-
-// TODO ugly as hell
-export function setMapnikConfigFactory(
-  _generateMapnikConfig: MapnikConfigFactory,
-  _legend: Legend,
-) {
-  generateMapnikConfig = _generateMapnikConfig;
-
-  legend = _legend;
 }

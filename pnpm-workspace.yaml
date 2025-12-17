@@ -1,0 +1,3 @@
+onlyBuiltDependencies:
+  - fs-ext
+  - pngquant-bin

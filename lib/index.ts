@@ -5,103 +5,87 @@ import config from 'config';
 import { prerender, resume } from './prerenderrer.js';
 import { fillDirtyTilesRegister } from './dirtyTilesScanner.js';
 import { processExpireFiles } from './expireFilesProcessor.js';
-import {
-  listenHttp,
-  closeServer,
-  setMapnikConfigFactory,
-} from './httpServer.js';
-import { getPool, initPool } from './mapnikPool.js';
+import { listenHttp, closeServer } from './httpServer.js';
+import { pool } from './mapnikPool.js';
 import { cleanupOutOfBoundTiles } from './outOfBoundsCleaner.js';
-import { Legend, MapnikConfigFactory, PrerenderConfig } from './types.js';
+import { PrerenderConfig } from './types.js';
 
 const cleanup: boolean = config.get('limits.cleanup');
 
-export function startMapserver(
-  mapnikConfig: string,
-  mapnikConfigFactory: MapnikConfigFactory,
-  legend: Legend,
-) {
-  const prerenderConfig: PrerenderConfig = config.get('prerender');
-  const tilesDir: string = config.get('dirs.tiles');
-  const expiresDir: string = config.get('dirs.expires');
+const prerenderConfig: PrerenderConfig = config.get('prerender');
+const tilesDir: string = config.get('dirs.tiles');
+const expiresDir: string = config.get('dirs.expires');
 
-  setMapnikConfigFactory(mapnikConfigFactory, legend);
+let watcher: FSWatcher;
 
-  initPool(mapnikConfig);
+pool.on('factoryCreateError', async (error) => {
+  console.error('Error creating or configuring Mapnik:', error);
 
-  const pool = getPool(1);
+  process.exitCode = 1;
 
-  let watcher: FSWatcher;
+  if (watcher) {
+    watcher.close();
+  }
 
-  pool.on('factoryCreateError', async (error) => {
-    console.error('Error creating or configuring Mapnik:', error);
+  closeServer();
 
-    process.exitCode = 1;
+  await pool.drain();
+  await pool.clear();
+});
 
-    if (watcher) {
-      watcher.close();
+let depth = 0;
+
+function processNewDirties() {
+  console.info(`Processing new expire files (depth: ${depth}).`);
+
+  depth++;
+
+  if (depth > 1) {
+    return;
+  }
+
+  global.processingExpiredTiles = true;
+
+  processExpireFiles(tilesDir).then((retry) => {
+    global.processingExpiredTiles = false;
+
+    resume();
+
+    retry ||= depth > 1;
+
+    depth = 0;
+
+    if (retry) {
+      processNewDirties();
     }
-
-    closeServer();
-
-    await pool.drain();
-    await pool.clear();
   });
+}
 
-  let depth = 0;
+// TODO we could maybe await
+if (cleanup) {
+  cleanupOutOfBoundTiles().catch((err) => {
+    console.error('Error in cleanupOutOfBoundTiles:', err);
+  });
+}
 
-  function processNewDirties() {
-    console.info(`Processing new expire files (depth: ${depth}).`);
+if (prerenderConfig) {
+  processNewDirties();
 
-    depth++;
+  fillDirtyTilesRegister()
+    .then(() => {
+      listenHttp();
 
-    if (depth > 1) {
-      return;
-    }
+      watcher = chokidar.watch(expiresDir);
 
-    global.processingExpiredTiles = true;
+      watcher.on('add', processNewDirties);
 
-    processExpireFiles(tilesDir).then((retry) => {
-      global.processingExpiredTiles = false;
+      return prerender();
+    })
+    .catch((err) => {
+      console.error('Error filling dirty tiles register', err);
 
-      resume();
-
-      retry ||= depth > 1;
-
-      depth = 0;
-
-      if (retry) {
-        processNewDirties();
-      }
+      process.exit(1);
     });
-  }
-
-  // TODO we could maybe await
-  if (cleanup) {
-    cleanupOutOfBoundTiles().catch((err) => {
-      console.error('Error in cleanupOutOfBoundTiles:', err);
-    });
-  }
-
-  if (prerenderConfig) {
-    processNewDirties();
-
-    fillDirtyTilesRegister()
-      .then(() => {
-        listenHttp();
-
-        watcher = chokidar.watch(expiresDir);
-
-        watcher.on('add', processNewDirties);
-
-        return prerender();
-      })
-      .catch((err) => {
-        console.error('Error filling dirty tiles register', err);
-
-        process.exit(1);
-      });
-  } else {
-    listenHttp();
-  }
+} else {
+  listenHttp();
 }

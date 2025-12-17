@@ -2,7 +2,6 @@
 
 ## Features
 
-- Mapnik configuration in Javascript adding all benefits of scripting (preventing repetition, programatic style generation, …)
 - Map tile serving (TMS)
 - PDF output
 - Configurable map pre-rendering
@@ -104,7 +103,6 @@ Your app must use `node-config` library with configuration of the following stru
 - On startup all tiles out of `limits` are deleted
 
 - On startup scans all scale-1 tiles within `prerender` limits and adds tile to _Dirty Tiles Register_ if:
-
   - scale-1 tile is missing
   - scale-1 tile is older than `rerenderOlderThanMs`
   - for tile exists a _dirty-file_

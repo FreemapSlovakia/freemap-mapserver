@@ -32,6 +32,44 @@ export function tile2lat(y: number, z: number): number {
   return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
 }
 
+const EARTH_RADIUS_M = 6378137;
+const WEB_MERCATOR_ORIGIN = Math.PI * EARTH_RADIUS_M;
+const WEB_MERCATOR_EXTENT = 2 * WEB_MERCATOR_ORIGIN;
+
+export function lonLatTo3857(lon: number, lat: number): [number, number] {
+  const clampedLat = Math.max(Math.min(lat, 85.05112878), -85.05112878);
+  const x = (lon * WEB_MERCATOR_ORIGIN) / 180;
+  const y =
+    Math.log(Math.tan((Math.PI / 4) + (clampedLat * Math.PI) / 360)) *
+    EARTH_RADIUS_M;
+  return [x, y];
+}
+
+export function bbox4326To3857(
+  bbox: [number, number, number, number],
+): [number, number, number, number] {
+  const [minX, minY] = lonLatTo3857(bbox[0], bbox[1]);
+  const [maxX, maxY] = lonLatTo3857(bbox[2], bbox[3]);
+  return [minX, minY, maxX, maxY];
+}
+
+// Web Mercator meters (EPSG:3859).
+export function tile2bbox3859(
+  x: number,
+  y: number,
+  zoom: number,
+): [number, number, number, number] {
+  const n = Math.pow(2, zoom);
+  const tileSize = WEB_MERCATOR_EXTENT / n;
+
+  const minX = x * tileSize - WEB_MERCATOR_ORIGIN;
+  const maxX = (x + 1) * tileSize - WEB_MERCATOR_ORIGIN;
+  const maxY = WEB_MERCATOR_ORIGIN - y * tileSize;
+  const minY = WEB_MERCATOR_ORIGIN - (y + 1) * tileSize;
+
+  return [minX, minY, maxX, maxY];
+}
+
 export function computeZoomedTiles(
   collect: (tile: Tile) => void,
   tile: Tile,

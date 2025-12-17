@@ -1,17 +1,19 @@
 import path from 'path';
 import config from 'config';
-import mapnik from '@mapnik/mapnik';
 import { rename, mkdir, unlink, stat, writeFile, open } from 'fs/promises';
 import { flock } from 'fs-ext';
 import { promisify } from 'util';
-import { mercSrs } from './projections.js';
-import { tile2key, tileOverlapsLimits } from './tileCalc.js';
+import {
+  bbox4326To3857,
+  tile2key,
+  tile2bbox3859,
+  tileOverlapsLimits,
+} from './tileCalc.js';
 import { dirtyTiles } from './dirtyTilesRegister.js';
-import { getPool, getImagePool } from './mapnikPool.js';
-import { spawn } from 'promisify-child-process';
-import pngquant from 'pngquant-bin';
+import { pool } from './mapnikPool.js';
 import { prerenderPolygon } from './config.js';
 import { Tile } from './types.js';
+import { RenderFormat } from './renderWorker.js';
 
 const flockAsync = promisify(
   flock as (
@@ -31,13 +33,9 @@ const renderToPdfConcurrency: number = config.get('renderToPdfConcurrency');
 
 const limitScales: number[] = config.get('limits.scales');
 
-const pngquantOptions: string[] | undefined = config.get('pngquantOptions');
-
 let tilesDir: string = config.get('dirs.tiles');
 
 const extension: string = config.get('format.extension');
-
-const codec: string = config.get('format.codec');
 
 const expiresZoom = config.get('expiresZoom');
 
@@ -46,15 +44,6 @@ const prerenderMaxZoom: number = config.get('prerenderMaxZoom');
 const prerenderDelayWhenExpiring: number | undefined = config.get(
   'prerenderDelayWhenExpiring',
 );
-
-const tx = new mapnik.ProjTransform(
-  new mapnik.Projection('EPSG:4326'),
-  new mapnik.Projection('EPSG:3857'),
-);
-
-mapnik.registerFonts(config.get('dirs.fonts'), { recurse: true });
-
-const white = new mapnik.Color('white');
 
 let cnt = 0;
 
@@ -164,107 +153,42 @@ async function renderSingleScale(
 
         return;
       }
-    } catch (_) {
+    } catch {
       // nothing
     }
   }
 
   console.log(`${logPrefix}rendering`, reasons);
 
-  const pool = getPool(scale);
+  const renderer = await pool.acquire(prerender ? 1 : 0);
 
-  const map = await pool.acquire(prerender ? 1 : 0);
-
-  const imagePool = getImagePool('main', scale);
-
-  let im = await imagePool.acquire();
-
-  let bgImagePool;
-
-  let bgIm;
-
-  let buffer;
+  let buffer: Buffer;
 
   let t: number;
 
   try {
-    try {
-      t = Date.now();
-
-      map.zoomToBox(
-        tx.forward([
-          ...transformCoords(zoom, x, y + 1),
-          ...transformCoords(zoom, x + 1, y),
-        ]),
-      );
-
-      // await map.renderFileAsync(tmpName, { format: 'png', buffer_size: 256, scale });
-      await map.renderAsync(im, {
-        buffer_size: 256 * scale,
-        scale,
-        variables: {
-          zoom,
-          scale,
-          scale_denominator: 559082264.028 / Math.pow(2, zoom),
-        },
-      });
-
-      measure('render', Date.now() - t);
-
-      // this is to get rid of transparency because of edge blurring and JPEG
-
-      bgImagePool = getImagePool('bg', scale);
-
-      bgIm = await bgImagePool.acquire();
-
-      await Promise.all([
-        im.premultiplyAsync(),
-        (async () => {
-          await bgIm.fillAsync(white);
-          await bgIm.premultiplyAsync();
-        })(),
-      ]);
-
-      await bgIm.compositeAsync(im);
-
-      await bgIm.demultiplyAsync();
-    } finally {
-      pool.release(map);
-      // TODO release image pool on error
-    }
-
     t = Date.now();
 
-    buffer = await bgIm.encodeAsync(codec);
+    const result = await renderer.render(
+      tile2bbox3859(x, y, zoom),
+      zoom,
+      scale,
+      extension as RenderFormat,
+    );
 
-    measure('encode', Date.now() - t);
+    buffer = result.data;
+
+    measure('render', Date.now() - t);
   } finally {
-    imagePool.release(im);
-
-    if (bgImagePool && bgIm) {
-      bgImagePool.release(bgIm);
-    }
+    pool.release(renderer);
+    // TODO release image pool on error
   }
 
   const tmpName = `${ps}_${cnt++}_tmp.${extension}`;
 
   t = Date.now();
 
-  if (pngquantOptions) {
-    const child = spawn(pngquant, [...pngquantOptions, '-o', tmpName, '-'], {
-      encoding: 'buffer',
-    });
-
-    child.stdin!.write(buffer);
-
-    const { /*stdout, stderr,*/ code } = await child;
-
-    if (code) {
-      throw new Error(`pngquant exit code: ${code}`);
-    }
-  } else {
-    await writeFile(tmpName, buffer);
-  }
+  await writeFile(tmpName, buffer);
 
   if (typeof expiresZoom === 'number' && zoom > prerenderMaxZoom) {
     const div = 2 ** (zoom - expiresZoom);
@@ -368,11 +292,9 @@ const pdfUnlocks: (() => void)[] = [];
 // scale: my screen is 96 dpi, pdf is 72 dpi; 72 / 96 = 0.75
 export async function exportMap(
   destFile: string | undefined,
-  xml: string,
   zoom: number,
   bbox: [number, number, number, number],
   scale = 1,
-  width: number | undefined | null,
   cancelHolder: { cancelled: boolean } | undefined,
   format: string,
 ) {
@@ -388,47 +310,24 @@ export async function exportMap(
 
   pdfLockCount++;
 
+  const renderer = await pool.acquire(1);
+
   try {
-    bbox = tx.forward(bbox);
-
-    // manually found constant; very close to 1e12 / 6378137 (radius of earth in m) = 156785.594289
-    const q = Math.pow(2, zoom) / 156543; /* manually found constant */
-
-    const map = new mapnik.Map(
-      width || (bbox[2] - bbox[0]) * q * scale,
-      width
-        ? ((bbox[3] - bbox[1]) / (bbox[2] - bbox[0])) * width
-        : (bbox[3] - bbox[1]) * q * scale,
+    const result = await renderer.render(
+      bbox4326To3857(bbox),
+      zoom,
+      scale,
+      format as RenderFormat,
     );
 
-    await map.fromStringAsync(xml);
-
-    map.zoomToBox(bbox);
-
-    const scale_denominator =
-      559082264.028 / Math.pow(2, Math.round(zoom + Math.log2(scale)));
-
-    if (destFile) {
-      await map.renderFileAsync(destFile, {
-        format,
-        buffer_size: 256,
-        scale_denominator,
-        scale,
-        variables: { zoom, scale, scale_denominator },
-      });
-    } else {
-      const im = new mapnik.Image(map.width, map.height);
-
-      await map.renderAsync(im, {
-        buffer_size: 256,
-        scale,
-        scale_denominator,
-        variables: { zoom, scale, scale_denominator },
-      }); // TODO buffer_size * scale?
-
-      return await im.encodeAsync(format);
+    if (!destFile) {
+      return result.data;
     }
+
+    await writeFile(destFile, result.data);
   } finally {
+    pool.release(renderer);
+
     const unlock = pdfUnlocks.shift();
 
     if (unlock) {
@@ -442,19 +341,3 @@ export async function exportMap(
     }
   }
 }
-
-function transformCoords(zoom: number, xtile: number, ytile: number) {
-  const n = Math.pow(2, zoom);
-
-  const lon_deg = (xtile / n) * 360.0 - 180.0;
-
-  const lat_rad = Math.atan(Math.sinh(Math.PI * (1 - (2 * ytile) / n)));
-
-  const lat_deg = (lat_rad * 180.0) / Math.PI;
-
-  return [lon_deg, lat_deg] as const;
-}
-
-// for (let i = 0; i < 1000000; i++) {
-//   new mapnik.Image(256, 256);
-// }

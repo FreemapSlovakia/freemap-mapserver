@@ -1,0 +1,50 @@
+{
+  db: {
+    type: "postgis",
+    password: "b0n0",
+    host: "localhost",
+    port: 5432,
+    user: "martin",
+    dbname: "martin",
+  },
+  // db1: {
+  //   type: "postgis",
+  //   password: "gis",
+  //   host: "localhost",
+  //   port: 5432,
+  //   user: "gis",
+  //   dbname: "gis",
+  // },
+  dumpXml: false,
+  mapFeatures: {
+    contours: false,
+    shading: true,
+    // hikingTrails: false,
+    // bicycleTrails: false,
+    // skiTrails: false,
+    // skiTrails: false,
+    // horseTrails: false,
+  },
+  limits: {
+    minZoom: 0,
+    maxZoom: 19,
+    scales: [1, 2, 3],
+  },
+  // prerender: {
+  //   // set to null to disable pre-rendering
+  //   // workers: 16, // commented out = use num of cpus
+  //   polygon: "tmp.geojson",
+  //   minZoom: 14,
+  //   maxZoom: 14,
+  //   // zoomPrio: [18],
+  // },
+  prerender: null,
+  forceTileRendering: true,
+  pngquantOptions: null,
+  crop: null,
+  format: {
+    extension: "jpg",
+    mimeType: "image/jpeg",
+    codec: "jpeg",
+  },
+}
