@@ -56,7 +56,7 @@ export async function renderTile(
 ): Promise<string | undefined> {
   const frags = [tilesDir, zoom.toString(10), x.toString(10)];
 
-  const p = path.join(...frags, y.toString(10));
+  const pathnameBase = path.join(...frags, y.toString(10));
 
   const reasons: string[] = [];
 
@@ -65,21 +65,25 @@ export async function renderTile(
   } else if (!reqScale) {
     reasons.push('noReqScale');
   } else {
-    await shouldRender(p, { zoom, x, y, reqScale }, reasons);
+    await shouldRender(pathnameBase, { zoom, x, y, reqScale }, reasons);
   }
 
   if (reasons.length) {
     await mkdir(path.join(...frags), { recursive: true });
 
-    await Promise.all(
-      (reqScale ? [reqScale] : limitScales).map((scale) =>
-        renderSingleScale(p, zoom, x, y, scale, !reqScale, reasons),
-      ),
+    await renderScales(
+      pathnameBase,
+      zoom,
+      x,
+      y,
+      reqScale ? [reqScale] : limitScales,
+      !reqScale,
+      reasons,
     );
 
     if (!reqScale) {
       try {
-        await unlink(p + '.dirty');
+        await unlink(pathnameBase + '.dirty');
       } catch (_) {
         // ignore
       }
@@ -89,18 +93,22 @@ export async function renderTile(
   }
 
   return reqScale
-    ? `${p}${reqScale === 1 ? '' : `@${reqScale}x`}.${extension}`
+    ? `${pathnameBase}${reqScale === 1 ? '' : `@${reqScale}x`}.${extension}`
     : undefined;
 }
 
 let coolDownPromise: Promise<void> | null;
 
-async function renderSingleScale(
-  p: string,
+function toScaleSpec(scale: number) {
+  return scale === 1 ? '' : `@${scale}x`;
+}
+
+async function renderScales(
+  pathnameBase: string,
   zoom: number,
   x: number,
   y: number,
-  scale: number,
+  scales: number[],
   prerender: boolean,
   reasons: string[],
 ) {
@@ -121,48 +129,56 @@ async function renderSingleScale(
     }
   }
 
-  const s = scale === 1 ? '' : `@${scale}x`;
+  const logPrefix = (prerender ? 'Pre-rendering' : 'Rendering') + ' tile: ';
 
-  const spec = `${zoom}/${x}/${y}${s}`;
-
-  const ps = `${p}${s}`;
-
-  const logPrefix = `${
-    prerender ? 'Pre-rendering' : 'Rendering'
-  } tile ${spec}: `;
+  let dirtyTile;
 
   if (prerender) {
-    const dirtyTile = dirtyTiles.get(tile2key({ zoom, x, y }));
+    dirtyTile = dirtyTiles.get(tile2key({ zoom, x, y }));
 
     if (!dirtyTile) {
       console.warn(`${logPrefix}no dirty meta found`);
 
       return;
     }
+  }
 
+  const scales2: number[] = [];
+
+  if (dirtyTile) {
     reasons.push('dirty');
 
-    try {
-      const { mtimeMs } = await stat(`${ps}.${extension}`);
+    for (const scale of scales) {
+      const scaleSpec = toScaleSpec(scale);
 
-      if (
-        mtimeMs > dirtyTile.dt &&
-        (!rerenderOlderThanMs || mtimeMs > rerenderOlderThanMs)
-      ) {
-        console.log(`${logPrefix}fresh`);
+      try {
+        const { mtimeMs } = await stat(
+          `${pathnameBase}${scaleSpec}.${extension}`,
+        );
 
-        return;
+        if (
+          mtimeMs > dirtyTile.dt &&
+          (!rerenderOlderThanMs || mtimeMs > rerenderOlderThanMs)
+        ) {
+          console.log(`${logPrefix}fresh`);
+
+          continue;
+        }
+      } catch {
+        // nothing
       }
-    } catch {
-      // nothing
+
+      scales2.push(scale);
     }
+  } else {
+    scales2.push(...scales); // NOTE should be only one - on demand
   }
 
   console.log(`${logPrefix}rendering`, reasons);
 
   const renderer = await pool.acquire(prerender ? 1 : 0);
 
-  let buffer: Buffer;
+  let buffers: Buffer[];
 
   let t: number;
 
@@ -172,11 +188,11 @@ async function renderSingleScale(
     const result = await renderer.render(
       tile2bbox3859(x, y, zoom),
       zoom,
-      scale,
+      scales2,
       extension as RenderFormat,
     );
 
-    buffer = result.data;
+    buffers = result.images;
 
     measure('render', Date.now() - t);
   } finally {
@@ -184,11 +200,22 @@ async function renderSingleScale(
     // TODO release image pool on error
   }
 
-  const tmpName = `${ps}_${cnt++}_tmp.${extension}`;
+  const tmpNames: [string, string][] = [];
 
-  t = Date.now();
+  for (let i = 0; i < scales.length; i++) {
+    const scale = scales2[i];
 
-  await writeFile(tmpName, buffer);
+    const tmpName = `${pathnameBase}${toScaleSpec(scale)}_${cnt++}_tmp.${extension}`;
+
+    t = Date.now();
+
+    await writeFile(tmpName, buffers[i]);
+
+    tmpNames.push([
+      tmpName,
+      `${pathnameBase}${toScaleSpec(scale)}.${extension}`,
+    ]);
+  }
 
   if (typeof expiresZoom === 'number' && zoom > prerenderMaxZoom) {
     const div = 2 ** (zoom - expiresZoom);
@@ -208,14 +235,18 @@ async function renderSingleScale(
       'a',
     );
 
-    await flockAsync(fh.fd, 'sh');
+    fh.write(
+      scales2
+        .map((scale) => `${zoom}/${x}/${y}${toScaleSpec(scale)}\n`)
+        .join(''),
+    );
 
-    await fh.write(spec + '\n');
+    await flockAsync(fh.fd, 'sh');
 
     await fh.close();
   }
 
-  await rename(tmpName, `${ps}.${extension}`);
+  await Promise.all(tmpNames.map(([from, to]) => rename(from, to)));
 
   measure('write', Date.now() - t);
 }
@@ -256,16 +287,16 @@ function measure(operation: string, duration: number) {
 
 // used for requested single scale
 async function shouldRender(
-  p: string,
+  pathnameBase: string,
   tile: Tile & { reqScale: number },
   reasons: string[],
 ) {
   let s;
   try {
     s = await stat(
-      `${p}${tile.reqScale === 1 ? '' : `@${tile.reqScale}x`}.${extension}`,
+      `${pathnameBase}${tile.reqScale === 1 ? '' : `@${tile.reqScale}x`}.${extension}`,
     );
-  } catch (err) {
+  } catch {
     reasons.push('doesntExist');
     return;
   }
@@ -316,15 +347,15 @@ export async function exportMap(
     const result = await renderer.render(
       bbox4326To3857(bbox),
       zoom,
-      scale,
+      [scale],
       format as RenderFormat,
     );
 
     if (!destFile) {
-      return result.data;
+      return result.images[0];
     }
 
-    await writeFile(destFile, result.data);
+    await writeFile(destFile, result.images[0]);
   } finally {
     pool.release(renderer);
 

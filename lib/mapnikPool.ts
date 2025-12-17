@@ -20,9 +20,9 @@ type RendererConfig = {
 };
 
 let rendererConfig: RendererConfig = {
-  connectionString: 'postgres://martin:b0n0@localhost/martin',
-  hillshadingBase: '/home/martin/14TB/hillshading',
-  svgBase: '/home/martin/fm/maprender/images',
+  connectionString: config.get('postgresConnectionString'),
+  hillshadingBase: config.get('hillshadingBase'),
+  svgBase: config.get('svgBase'),
 };
 
 type WorkerRenderer = {
@@ -30,7 +30,7 @@ type WorkerRenderer = {
   render: (
     bbox: [number, number, number, number],
     zoom: number,
-    scale?: number,
+    scales: number[],
     format?: RenderFormat,
   ) => Promise<RenderResult>;
   terminate: () => Promise<void>;
@@ -95,7 +95,7 @@ function createWorkerRenderer(worker: Worker): WorkerRenderer {
     }
 
     pendingItem.resolve({
-      data: Buffer.from(message.result.data),
+      images: message.result.images.map((image) => Buffer.from(image)),
       contentType: message.result.contentType,
     });
   });
@@ -115,7 +115,7 @@ function createWorkerRenderer(worker: Worker): WorkerRenderer {
   const render = async (
     bbox: [number, number, number, number],
     zoom: number,
-    scale?: number,
+    scales: number[],
     format?: RenderFormat,
   ): Promise<RenderResult> => {
     await readyPromise;
@@ -128,7 +128,7 @@ function createWorkerRenderer(worker: Worker): WorkerRenderer {
         id,
         bbox,
         zoom,
-        scale,
+        scales,
         format,
       } satisfies RenderRequest);
     });
@@ -160,5 +160,4 @@ const factory: Factory<WorkerRenderer> = {
 export const pool = genericPool.createPool(factory, {
   max: 'max' in workers ? workers.max : nCpus,
   min: 'min' in workers ? workers.min : nCpus,
-  priorityRange: 2,
 });

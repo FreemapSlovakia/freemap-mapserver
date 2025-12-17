@@ -3,16 +3,13 @@ import { parentPort, workerData } from 'worker_threads';
 
 export type RenderFormat = 'png' | 'jpg' | 'jpeg' | 'pdf' | 'svg';
 
-export type RenderResult = {
-  data: Buffer;
-  contentType: string;
-};
+export type RenderResult = ReturnType<Renderer['render']>;
 
 export type RenderRequest = {
   id: number;
   bbox: [number, number, number, number];
   zoom: number;
-  scale?: number;
+  scales: number[];
   format?: RenderFormat;
 };
 
@@ -33,7 +30,7 @@ export type RenderResponse =
       type: 'success';
       id: number;
       result: {
-        data: Uint8Array;
+        images: Uint8Array[];
         contentType: string;
       };
     };
@@ -57,22 +54,22 @@ pp.on('message', (message: RenderRequest) => {
     const result: RenderResult = renderer.render(
       message.bbox,
       message.zoom,
-      message.scale,
+      message.scales,
       message.format,
     );
 
-    const data = Uint8Array.from(result.data);
+    const images = result.images.map((image) => Uint8Array.from(image));
 
     pp.postMessage(
       {
         type: 'success',
         id: message.id,
         result: {
-          data,
+          images,
           contentType: result.contentType,
         },
       } satisfies RenderResponse,
-      [data.buffer],
+      images.map((image) => image.buffer),
     );
   } catch (err) {
     pp.postMessage({

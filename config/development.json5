@@ -1,21 +1,4 @@
 {
-  db: {
-    type: "postgis",
-    password: "b0n0",
-    host: "localhost",
-    port: 5432,
-    user: "martin",
-    dbname: "martin",
-  },
-  // db1: {
-  //   type: "postgis",
-  //   password: "gis",
-  //   host: "localhost",
-  //   port: 5432,
-  //   user: "gis",
-  //   dbname: "gis",
-  // },
-  dumpXml: false,
   mapFeatures: {
     contours: false,
     shading: true,
@@ -40,11 +23,12 @@
   // },
   prerender: null,
   forceTileRendering: true,
-  pngquantOptions: null,
   crop: null,
   format: {
-    extension: "jpg",
-    mimeType: "image/jpeg",
-    codec: "jpeg",
+    extension: 'jpg',
+    mimeType: 'image/jpeg',
   },
+  postgresConnectionString: 'postgres://martin:b0n0@localhost/martin',
+  hillshadingBase: '/home/martin/14TB/hillshading',
+  svgBase: '/home/martin/fm/maprender/images',
 }
