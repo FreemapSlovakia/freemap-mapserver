@@ -13,7 +13,7 @@ import { dirtyTiles } from './dirtyTilesRegister.js';
 import { pool } from './renderedPool.js';
 import { prerenderPolygon } from './config.js';
 import { Tile } from './types.js';
-import { RenderFormat } from './renderWorker.js';
+import { ImageFormat } from 'maprender-node';
 
 const flockAsync = promisify(
   flock as (
@@ -189,7 +189,7 @@ async function renderScales(
       tile2bbox3859(x, y, zoom),
       zoom,
       scales2,
-      extension as RenderFormat,
+      extension as ImageFormat,
     );
 
     buffers = result.images;
@@ -348,7 +348,7 @@ export async function exportMap(
       bbox4326To3857(bbox),
       zoom,
       [scale],
-      format as RenderFormat,
+      format as ImageFormat,
     );
 
     if (!destFile) {
