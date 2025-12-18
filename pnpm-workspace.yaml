@@ -1,3 +1,6 @@
 onlyBuiltDependencies:
   - fs-ext
   - pngquant-bin
+
+overrides:
+  maprender-node: link:../../.local/share/pnpm/global/5/node_modules/maprender-node

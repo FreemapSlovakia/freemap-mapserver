@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  maprender-node: link:../../.local/share/pnpm/global/5/node_modules/maprender-node
+
 importers:
 
   .:
@@ -42,8 +45,8 @@ importers:
         specifier: 5.0.1
         version: 5.0.1
       maprender-node:
-        specifier: link:/home/martin/fm/maprender/crates/node
-        version: link:../maprender/crates/node
+        specifier: link:../../.local/share/pnpm/global/5/node_modules/maprender-node
+        version: link:../../.local/share/pnpm/global/5/node_modules/maprender-node
       promisify-child-process:
         specifier: 4.1.2
         version: 4.1.2
