@@ -189,7 +189,15 @@ async function renderScales(
       tile2bbox3859(x, y, zoom),
       zoom,
       scales2,
-      extension as ImageFormat,
+      (
+        {
+          jpg: 'Jpeg',
+          jpeg: 'Jpeg',
+          png: 'Png',
+          svg: 'Svg',
+          pdf: 'Pdf',
+        } as Record<string, ImageFormat>
+      )[extension] ?? ('Jpeg' as ImageFormat),
     );
 
     buffers = result.images;
@@ -327,7 +335,7 @@ export async function exportMap(
   bbox: [number, number, number, number],
   scale = 1,
   cancelHolder: { cancelled: boolean } | undefined,
-  format: string,
+  format: ImageFormat,
 ) {
   if (pdfLockCount >= renderToPdfConcurrency) {
     await new Promise<void>((unlock) => {
@@ -348,7 +356,7 @@ export async function exportMap(
       bbox4326To3857(bbox),
       zoom,
       [scale],
-      format as ImageFormat,
+      format,
     );
 
     if (!destFile) {
