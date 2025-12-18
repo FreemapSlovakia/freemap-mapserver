@@ -20,7 +20,7 @@ let rendererConfig: RendererConfig = {
   connectionString: config.get('postgresConnectionString'),
   hillshadingBase: config.get('hillshadingBase'),
   svgBase: config.get('svgBase'),
-  dbPriority: config.get('dbPriority'),
+  dbPriority: config.has('dbPriority') ? config.get('dbPriority') : undefined,
 };
 
 export type WorkerRenderer = {

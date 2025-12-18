@@ -19,8 +19,7 @@
     "koa-body": "7.0.1",
     "koa-send": "5.0.1",
     "maprender-node": "link:/home/martin/fm/maprender/crates/node",
-    "promisify-child-process": "4.1.2",
-    "valibot": "1.2.0"
+    "promisify-child-process": "4.1.2"
   },
   "devDependencies": {
     "@types/config": "3.3.5",
