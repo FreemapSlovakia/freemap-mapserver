@@ -11,7 +11,7 @@ import Router from '@koa/router';
 import send from 'koa-send';
 import cors from '@koa/cors';
 
-import { renderTile, exportMap } from './renderrer.js';
+import { renderTile, exportMap } from './renderer.js';
 import { tileOverlapsLimits } from './tileCalc.js';
 import { limitPolygon } from './config.js';
 import { JSONSchema7 } from 'json-schema';

@@ -2,12 +2,8 @@ import { cpus } from 'os';
 import config from 'config';
 import genericPool, { Factory } from 'generic-pool';
 import { Worker } from 'worker_threads';
-import {
-  RenderFormat,
-  RenderRequest,
-  RenderResponse,
-  RenderResult,
-} from './renderWorker.js';
+import { RenderRequest, RenderResponse, RenderResult } from './renderWorker.js';
+import { ImageFormat, RequestExtra } from 'maprender-node';
 
 const workers: { min?: number; max?: number } = config.get('workers');
 
@@ -17,21 +13,24 @@ type RendererConfig = {
   connectionString: string;
   hillshadingBase: string;
   svgBase: string;
+  dbPriority?: number;
 };
 
 let rendererConfig: RendererConfig = {
   connectionString: config.get('postgresConnectionString'),
   hillshadingBase: config.get('hillshadingBase'),
   svgBase: config.get('svgBase'),
+  dbPriority: config.get('dbPriority'),
 };
 
-type WorkerRenderer = {
+export type WorkerRenderer = {
   waitReady: () => Promise<void>;
   render: (
     bbox: [number, number, number, number],
     zoom: number,
     scales: number[],
-    format?: RenderFormat,
+    format: ImageFormat,
+    extra?: RequestExtra,
   ) => Promise<RenderResult>;
   terminate: () => Promise<void>;
 };
@@ -44,6 +43,7 @@ function createWorkerRenderer(worker: Worker): WorkerRenderer {
       reject: (err: Error) => void;
     }
   >();
+
   let nextId = 1;
   let readyResolve: (() => void) | undefined;
   let readyReject: ((err: Error) => void) | undefined;
@@ -116,7 +116,8 @@ function createWorkerRenderer(worker: Worker): WorkerRenderer {
     bbox: [number, number, number, number],
     zoom: number,
     scales: number[],
-    format?: RenderFormat,
+    format: ImageFormat,
+    extra?: RequestExtra,
   ): Promise<RenderResult> => {
     await readyPromise;
 
@@ -130,6 +131,7 @@ function createWorkerRenderer(worker: Worker): WorkerRenderer {
         zoom,
         scales,
         format,
+        extra,
       } satisfies RenderRequest);
     });
   };
@@ -148,7 +150,9 @@ const factory: Factory<WorkerRenderer> = {
     });
 
     const renderer = createWorkerRenderer(worker);
+
     await renderer.waitReady();
+
     return renderer;
   },
 

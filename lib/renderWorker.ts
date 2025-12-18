@@ -1,7 +1,5 @@
-import { Renderer } from 'maprender-node';
+import { ImageFormat, Renderer, RequestExtra } from 'maprender-node';
 import { parentPort, workerData } from 'worker_threads';
-
-export type RenderFormat = 'png' | 'jpg' | 'jpeg' | 'pdf' | 'svg';
 
 export type RenderResult = ReturnType<Renderer['render']>;
 
@@ -10,7 +8,8 @@ export type RenderRequest = {
   bbox: [number, number, number, number];
   zoom: number;
   scales: number[];
-  format?: RenderFormat;
+  format: ImageFormat;
+  extra?: RequestExtra;
 };
 
 export type SerializedError = {
@@ -45,6 +44,7 @@ const renderer = new Renderer(
   workerData.connectionString,
   workerData.hillshadingBase,
   workerData.svgBase,
+  workerData.dbPriority,
 );
 
 pp.postMessage({ type: 'ready' } satisfies RenderResponse);

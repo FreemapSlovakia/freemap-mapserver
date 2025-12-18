@@ -1,7 +1,7 @@
 import config from 'config';
 import { cpus } from 'os';
 import { dirtyTiles } from './dirtyTilesRegister.js';
-import { renderTile } from './renderrer.js';
+import { renderTile } from './renderer.js';
 import { Worker } from 'worker_threads';
 import { Tile } from './types.js';
 
@@ -29,7 +29,7 @@ export function resume() {
 }
 
 export async function prerender() {
-  console.log('Starting pre-renderrer.');
+  console.log('Starting pre-renderer.');
 
   const tiles = findTilesToRender();
 

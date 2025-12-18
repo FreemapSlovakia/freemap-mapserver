@@ -10,7 +10,7 @@ import {
   tileOverlapsLimits,
 } from './tileCalc.js';
 import { dirtyTiles } from './dirtyTilesRegister.js';
-import { pool } from './mapnikPool.js';
+import { pool } from './renderedPool.js';
 import { prerenderPolygon } from './config.js';
 import { Tile } from './types.js';
 import { RenderFormat } from './renderWorker.js';

@@ -2,11 +2,11 @@
 
 import chokidar, { FSWatcher } from 'chokidar';
 import config from 'config';
-import { prerender, resume } from './prerenderrer.js';
+import { prerender, resume } from './prerenderer.js';
 import { fillDirtyTilesRegister } from './dirtyTilesScanner.js';
 import { processExpireFiles } from './expireFilesProcessor.js';
 import { listenHttp, closeServer } from './httpServer.js';
-import { pool } from './mapnikPool.js';
+import { pool } from './renderedPool.js';
 import { cleanupOutOfBoundTiles } from './outOfBoundsCleaner.js';
 import { PrerenderConfig } from './types.js';
 
